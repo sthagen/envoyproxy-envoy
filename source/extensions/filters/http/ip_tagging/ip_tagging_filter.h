@@ -98,7 +98,7 @@ private:
   std::unique_ptr<Network::LcTrie::LcTrie<std::string>> trie_;
 };
 
-typedef std::shared_ptr<IpTaggingFilterConfig> IpTaggingFilterConfigSharedPtr;
+using IpTaggingFilterConfigSharedPtr = std::shared_ptr<IpTaggingFilterConfig>;
 
 /**
  * A filter that gets all tags associated with a request's downstream remote address and
@@ -107,7 +107,7 @@ typedef std::shared_ptr<IpTaggingFilterConfig> IpTaggingFilterConfigSharedPtr;
 class IpTaggingFilter : public Http::StreamDecoderFilter {
 public:
   IpTaggingFilter(IpTaggingFilterConfigSharedPtr config);
-  ~IpTaggingFilter();
+  ~IpTaggingFilter() override;
 
   // Http::StreamFilterBase
   void onDestroy() override;

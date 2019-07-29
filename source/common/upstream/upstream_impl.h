@@ -17,8 +17,10 @@
 #include "envoy/event/timer.h"
 #include "envoy/local_info/local_info.h"
 #include "envoy/network/dns.h"
+#include "envoy/network/filter.h"
 #include "envoy/runtime/runtime.h"
 #include "envoy/secret/secret_manager.h"
+#include "envoy/server/filter_config.h"
 #include "envoy/server/transport_socket_config.h"
 #include "envoy/ssl/context_manager.h"
 #include "envoy/stats/scope.h"
@@ -71,9 +73,9 @@ public:
         canary_(Config::Metadata::metadataValue(metadata, Config::MetadataFilters::get().ENVOY_LB,
                                                 Config::MetadataEnvoyLbKeys::get().CANARY)
                     .bool_value()),
-        metadata_(std::make_shared<envoy::api::v2::core::Metadata>(metadata)),
-        locality_(locality), stats_{ALL_HOST_STATS(POOL_COUNTER(stats_store_),
-                                                   POOL_GAUGE(stats_store_))},
+        metadata_(std::make_shared<envoy::api::v2::core::Metadata>(metadata)), locality_(locality),
+        locality_zone_stat_name_(locality.zone(), cluster->statsScope().symbolTable()),
+        stats_{ALL_HOST_STATS(POOL_COUNTER(stats_store_), POOL_GAUGE(stats_store_))},
         priority_(priority) {
     if (health_check_config.port_value() != 0 &&
         dest_address->type() != Network::Address::Type::Ip) {
@@ -105,7 +107,7 @@ public:
     absl::ReaderMutexLock lock(&metadata_mutex_);
     return metadata_;
   }
-  virtual void metadata(const envoy::api::v2::core::Metadata& new_metadata) override {
+  void metadata(const envoy::api::v2::core::Metadata& new_metadata) override {
     absl::WriterMutexLock lock(&metadata_mutex_);
     metadata_ = std::make_shared<envoy::api::v2::core::Metadata>(new_metadata);
   }
@@ -135,9 +137,10 @@ public:
   Network::Address::InstanceConstSharedPtr healthCheckAddress() const override {
     return health_check_address_;
   }
-  // Setting health check address is usually done at initialization. This is NOP by default.
-  void setHealthCheckAddress(Network::Address::InstanceConstSharedPtr) override {}
   const envoy::api::v2::core::Locality& locality() const override { return locality_; }
+  Stats::StatName localityZoneStatName() const override {
+    return locality_zone_stat_name_.statName();
+  }
   uint32_t priority() const override { return priority_; }
   void priority(uint32_t priority) override { priority_ = priority; }
 
@@ -150,6 +153,7 @@ protected:
   mutable absl::Mutex metadata_mutex_;
   std::shared_ptr<envoy::api::v2::core::Metadata> metadata_ GUARDED_BY(metadata_mutex_);
   const envoy::api::v2::core::Locality locality_;
+  Stats::StatNameManagedStorage locality_zone_stat_name_;
   Stats::IsolatedStoreImpl stats_store_;
   HostStats stats_;
   Outlier::DetectorHostMonitorPtr outlier_detector_;
@@ -415,7 +419,7 @@ private:
   std::unique_ptr<EdfScheduler<LocalityEntry>> degraded_locality_scheduler_;
 };
 
-typedef std::unique_ptr<HostSetImpl> HostSetImplPtr;
+using HostSetImplPtr = std::unique_ptr<HostSetImpl>;
 
 /**
  * A class for management of the set of hosts in a given cluster.
@@ -481,13 +485,12 @@ private:
       ASSERT(!parent_.batch_update_);
       parent_.batch_update_ = true;
     }
-    ~BatchUpdateScope() { parent_.batch_update_ = false; }
+    ~BatchUpdateScope() override { parent_.batch_update_ = false; }
 
-    virtual void updateHosts(uint32_t priority,
-                             PrioritySet::UpdateHostsParams&& update_hosts_params,
-                             LocalityWeightsConstSharedPtr locality_weights,
-                             const HostVector& hosts_added, const HostVector& hosts_removed,
-                             absl::optional<uint32_t> overprovisioning_factor) override;
+    void updateHosts(uint32_t priority, PrioritySet::UpdateHostsParams&& update_hosts_params,
+                     LocalityWeightsConstSharedPtr locality_weights, const HostVector& hosts_added,
+                     const HostVector& hosts_removed,
+                     absl::optional<uint32_t> overprovisioning_factor) override;
 
     std::unordered_set<HostSharedPtr> all_hosts_added_;
     std::unordered_set<HostSharedPtr> all_hosts_removed_;
@@ -501,12 +504,14 @@ private:
 /**
  * Implementation of ClusterInfo that reads from JSON.
  */
-class ClusterInfoImpl : public ClusterInfo {
+class ClusterInfoImpl : public ClusterInfo, protected Logger::Loggable<Logger::Id::upstream> {
 public:
   ClusterInfoImpl(const envoy::api::v2::Cluster& config,
                   const envoy::api::v2::core::BindConfig& bind_config, Runtime::Loader& runtime,
                   Network::TransportSocketFactoryPtr&& socket_factory,
-                  Stats::ScopePtr&& stats_scope, bool added_via_api);
+                  Stats::ScopePtr&& stats_scope, bool added_via_api,
+                  ProtobufMessage::ValidationVisitor& validation_visitor,
+                  Server::Configuration::TransportSocketFactoryContext&);
 
   static ClusterStats generateStats(Stats::Scope& scope);
   static ClusterLoadReportStats generateLoadReportStats(Stats::Scope& scope);
@@ -532,6 +537,9 @@ public:
   extensionProtocolOptions(const std::string& name) const override;
   LoadBalancerType lbType() const override { return lb_type_; }
   envoy::api::v2::Cluster::DiscoveryType type() const override { return type_; }
+  const absl::optional<envoy::api::v2::Cluster::CustomClusterType>& clusterType() const override {
+    return cluster_type_;
+  }
   const absl::optional<envoy::api::v2::Cluster::LeastRequestLbConfig>&
   lbLeastRequestConfig() const override {
     return lb_least_request_config_;
@@ -570,6 +578,8 @@ public:
 
   absl::optional<std::string> eds_service_name() const override { return eds_service_name_; }
 
+  void createNetworkFilterChain(Network::Connection&) const override;
+
 private:
   struct ResourceManagers {
     ResourceManagers(const envoy::api::v2::Cluster& config, Runtime::Loader& runtime,
@@ -578,7 +588,7 @@ private:
                                 const std::string& cluster_name, Stats::Scope& stats_scope,
                                 const envoy::api::v2::core::RoutingPriority& priority);
 
-    typedef std::array<ResourceManagerImplPtr, NumResourcePriorities> Managers;
+    using Managers = std::array<ResourceManagerImplPtr, NumResourcePriorities>;
 
     Managers managers_;
   };
@@ -614,6 +624,9 @@ private:
   const bool drain_connections_on_host_removal_;
   const bool warm_hosts_;
   absl::optional<std::string> eds_service_name_;
+  const absl::optional<envoy::api::v2::Cluster::CustomClusterType> cluster_type_;
+  const std::unique_ptr<Server::Configuration::CommonFactoryContext> factory_context_;
+  std::vector<Network::FilterFactoryCb> filter_factories_;
 };
 
 /**
@@ -668,6 +681,7 @@ public:
   static std::tuple<HostsPerLocalityConstSharedPtr, HostsPerLocalityConstSharedPtr,
                     HostsPerLocalityConstSharedPtr>
   partitionHostsPerLocality(const HostsPerLocality& hosts);
+  Stats::SymbolTable& symbolTable() { return symbol_table_; }
 
   // Upstream::Cluster
   HealthChecker* healthChecker() override { return health_checker_.get(); }
@@ -727,6 +741,7 @@ private:
   bool initialization_started_{};
   std::function<void()> initialization_complete_callback_;
   uint64_t pending_initialize_health_checks_{};
+  Stats::SymbolTable& symbol_table_;
 };
 
 using ClusterImplBaseSharedPtr = std::shared_ptr<ClusterImplBase>;
@@ -780,7 +795,7 @@ private:
   PrioritySet::HostUpdateCb* update_cb_;
 };
 
-typedef std::unique_ptr<PriorityStateManager> PriorityStateManagerPtr;
+using PriorityStateManagerPtr = std::unique_ptr<PriorityStateManager>;
 
 /**
  * Base for all dynamic cluster types.
@@ -811,9 +826,23 @@ protected:
 };
 
 /**
- * Utility function to get Dns from cluster.
+ * Utility function to get Dns from cluster/enum.
  */
 Network::DnsLookupFamily getDnsLookupFamilyFromCluster(const envoy::api::v2::Cluster& cluster);
+Network::DnsLookupFamily
+getDnsLookupFamilyFromEnum(envoy::api::v2::Cluster::DnsLookupFamily family);
+
+/**
+ * Utility function to report upstream cx destroy metrics
+ */
+void reportUpstreamCxDestroy(const Upstream::HostDescriptionConstSharedPtr& host,
+                             Network::ConnectionEvent event);
+
+/**
+ * Utility function to report upstream cx destroy active request metrics
+ */
+void reportUpstreamCxDestroyActiveRequest(const Upstream::HostDescriptionConstSharedPtr& host,
+                                          Network::ConnectionEvent event);
 
 } // namespace Upstream
 } // namespace Envoy

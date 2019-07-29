@@ -119,6 +119,7 @@ envoy_cc_library(
         "//include/envoy/network:address_interface",
         "//include/envoy/stats:stats_interface",
         "@envoy_api//envoy/admin/v2alpha:server_info_cc",
+        "@envoy_api//envoy/config/bootstrap/v2:bootstrap_cc",
     ],
 )
 
@@ -147,8 +148,10 @@ envoy_cc_library(
     deps = [
         ":admin_interface",
         ":lifecycle_notifier_interface",
+        ":process_context_interface",
         "//include/envoy/access_log:access_log_interface",
         "//include/envoy/api:api_interface",
+        "//include/envoy/grpc:context_interface",
         "//include/envoy/http:codes_interface",
         "//include/envoy/http:context_interface",
         "//include/envoy/http:filter_interface",
@@ -190,6 +193,11 @@ envoy_cc_library(
         "//source/common/protobuf",
         "@envoy_api//envoy/api/v2/listener:listener_cc",
     ],
+)
+
+envoy_cc_library(
+    name = "process_context_interface",
+    hdrs = ["process_context.h"],
 )
 
 envoy_cc_library(

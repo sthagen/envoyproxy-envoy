@@ -6,9 +6,11 @@ option java_outer_classname = "ConfigDumpProto";
 option java_multiple_files = true;
 option java_package = "io.envoyproxy.envoy.admin.v2alpha";
 
+import "envoy/api/v2/auth/cert.proto";
 import "envoy/api/v2/cds.proto";
 import "envoy/api/v2/lds.proto";
 import "envoy/api/v2/rds.proto";
+import "envoy/api/v2/srds.proto";
 import "envoy/config/bootstrap/v2/bootstrap.proto";
 
 import "google/protobuf/any.proto";
@@ -54,7 +56,7 @@ message ListenersConfigDump {
   // will be "".
   string version_info = 1;
 
-  // Describes a statically loaded cluster.
+  // Describes a statically loaded listener.
   message StaticListener {
     // The listener config.
     envoy.api.v2.Listener listener = 1;
@@ -177,4 +179,89 @@ message RoutesConfigDump {
 
   // The dynamically loaded route configs.
   repeated DynamicRouteConfig dynamic_route_configs = 3 [(gogoproto.nullable) = false];
+}
+
+// Envoy's scoped RDS implementation fills this message with all currently loaded route
+// configuration scopes (defined via ScopedRouteConfigurationsSet protos). This message lists both
+// the scopes defined inline with the higher order object (i.e., the HttpConnectionManager) and the
+// dynamically obtained scopes via the SRDS API.
+message ScopedRoutesConfigDump {
+  message InlineScopedRouteConfigs {
+    // The name assigned to the scoped route configurations.
+    string name = 1;
+
+    // The scoped route configurations.
+    repeated envoy.api.v2.ScopedRouteConfiguration scoped_route_configs = 2;
+
+    // The timestamp when the scoped route config set was last updated.
+    google.protobuf.Timestamp last_updated = 3;
+  }
+
+  message DynamicScopedRouteConfigs {
+    // The name assigned to the scoped route configurations.
+    string name = 1;
+
+    // This is the per-resource version information. This version is currently taken from the
+    // :ref:`version_info <envoy_api_field_DiscoveryResponse.version_info>` field at the time that
+    // the scoped routes configuration was loaded.
+    string version_info = 2;
+
+    // The scoped route configurations.
+    repeated envoy.api.v2.ScopedRouteConfiguration scoped_route_configs = 3;
+
+    // The timestamp when the scoped route config set was last updated.
+    google.protobuf.Timestamp last_updated = 4;
+  }
+
+  // The statically loaded scoped route configs.
+  repeated InlineScopedRouteConfigs inline_scoped_route_configs = 1 [(gogoproto.nullable) = false];
+
+  // The dynamically loaded scoped route configs.
+  repeated DynamicScopedRouteConfigs dynamic_scoped_route_configs = 2
+      [(gogoproto.nullable) = false];
+}
+
+// Envoys SDS implementation fills this message with all secrets fetched dynamically via SDS.
+message SecretsConfigDump {
+  // DynamicSecret contains secret information fetched via SDS.
+  message DynamicSecret {
+    // The name assigned to the secret.
+    string name = 1;
+
+    // This is the per-resource version information.
+    string version_info = 2;
+
+    // The timestamp when the secret was last updated.
+    google.protobuf.Timestamp last_updated = 3;
+
+    // The actual secret information.
+    // Security sensitive information is redacted (replaced with "[redacted]") for
+    // private keys and passwords in TLS certificates.
+    envoy.api.v2.auth.Secret secret = 4;
+  }
+
+  // StaticSecret specifies statically loaded secret in bootstrap.
+  message StaticSecret {
+    // The name assigned to the secret.
+    string name = 1;
+
+    // The timestamp when the secret was last updated.
+    google.protobuf.Timestamp last_updated = 2;
+
+    // The actual secret information.
+    // Security sensitive information is redacted (replaced with "[redacted]") for
+    // private keys and passwords in TLS certificates.
+    envoy.api.v2.auth.Secret secret = 3;
+  }
+
+  // The statically loaded secrets.
+  repeated StaticSecret static_secrets = 1;
+
+  // The dynamically loaded active secrets. These are secrets that are available to service
+  // clusters or listeners.
+  repeated DynamicSecret dynamic_active_secrets = 2;
+
+  // The dynamically loaded warming secrets. These are secrets that are currently undergoing
+  // warming in preparation to service clusters or listeners.
+  repeated DynamicSecret dynamic_warming_secrets = 3;
 }

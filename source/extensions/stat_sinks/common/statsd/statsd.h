@@ -5,7 +5,6 @@
 #include "envoy/stats/histogram.h"
 #include "envoy/stats/scope.h"
 #include "envoy/stats/sink.h"
-#include "envoy/stats/source.h"
 #include "envoy/stats/stats.h"
 #include "envoy/stats/tag.h"
 #include "envoy/thread_local/thread_local.h"
@@ -31,7 +30,7 @@ public:
   Writer(Network::Address::InstanceConstSharedPtr address);
   // For testing.
   Writer() : io_handle_(std::make_unique<Network::IoSocketHandleImpl>()) {}
-  virtual ~Writer();
+  ~Writer() override;
 
   virtual void write(const std::string& message);
   // Called in unit test to validate address.
@@ -58,7 +57,7 @@ public:
   }
 
   // Stats::Sink
-  void flush(Stats::Source& source) override;
+  void flush(Stats::MetricSnapshot& snapshot) override;
   void onHistogramComplete(const Stats::Histogram& histogram, uint64_t value) override;
 
   // Called in unit test to validate writer construction and address.
@@ -87,7 +86,7 @@ public:
                 Stats::Scope& scope, const std::string& prefix = getDefaultPrefix());
 
   // Stats::Sink
-  void flush(Stats::Source& source) override;
+  void flush(Stats::MetricSnapshot& snapshot) override;
   void onHistogramComplete(const Stats::Histogram& histogram, uint64_t value) override {
     // For statsd histograms are all timers.
     tls_->getTyped<TlsSink>().onTimespanComplete(histogram.name(),
@@ -99,7 +98,7 @@ public:
 private:
   struct TlsSink : public ThreadLocal::ThreadLocalObject, public Network::ConnectionCallbacks {
     TlsSink(TcpStatsdSink& parent, Event::Dispatcher& dispatcher);
-    ~TlsSink();
+    ~TlsSink() override;
 
     void beginFlush(bool expect_empty_buffer);
     void checkSize();

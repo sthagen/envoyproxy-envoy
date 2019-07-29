@@ -17,13 +17,10 @@ namespace Envoy {
 // responds OK to all requests if it is.
 class EdsReadyFilter : public Http::PassThroughFilter {
 public:
-  EdsReadyFilter(const Stats::Scope& root_scope)
-      : root_scope_(root_scope),
-        stat_name_("cluster.cluster_0.membership_healthy",
-                   const_cast<Stats::SymbolTable&>(root_scope_.symbolTable())) {}
+  EdsReadyFilter(const Stats::Scope& root_scope, Stats::SymbolTable& symbol_table)
+      : root_scope_(root_scope), stat_name_("cluster.cluster_0.membership_healthy", symbol_table) {}
   Http::FilterHeadersStatus decodeHeaders(Http::HeaderMap&, bool) override {
-    absl::optional<std::reference_wrapper<const Stats::Gauge>> gauge =
-        root_scope_.findGauge(stat_name_.statName());
+    Stats::OptionalGauge gauge = root_scope_.findGauge(stat_name_.statName());
     if (!gauge.has_value()) {
       decoder_callbacks_->sendLocalReply(Envoy::Http::Code::InternalServerError,
                                          "Couldn't find stat", nullptr, absl::nullopt, "");
@@ -52,8 +49,9 @@ public:
   createFilter(const std::string&,
                Server::Configuration::FactoryContext& factory_context) override {
     return [&factory_context](Http::FilterChainFactoryCallbacks& callbacks) {
-      callbacks.addStreamFilter(
-          std::make_shared<EdsReadyFilter>(factory_context.api().rootScope()));
+      const Stats::Scope& scope = factory_context.api().rootScope();
+      Stats::SymbolTable& symbol_table = factory_context.scope().symbolTable();
+      callbacks.addStreamFilter(std::make_shared<EdsReadyFilter>(scope, symbol_table));
     };
   }
 };

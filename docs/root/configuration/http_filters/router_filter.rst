@@ -79,6 +79,9 @@ gateway-error
   This policy is similar to the *5xx* policy but will only retry requests that result in a 502, 503,
   or 504.
 
+reset
+  Envoy will attempt a retry if the upstream server does not respond at all (disconnect/reset/read timeout.)
+
 connect-failure
   Envoy will attempt a retry if a request is failed because of a connection failure to the upstream
   server (connect timeout, etc.). (Included in *5xx*)
@@ -217,6 +220,18 @@ requests. This timeout must be <= the global route timeout (see
 caller to set a tight per try timeout to allow for retries while maintaining a reasonable overall
 timeout.
 
+x-envoy-hedge-on-per-try-timeout
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Setting this header on egress requests will cause Envoy to use a request
+hedging strategy in the case of a per try timeout. This overrides the value set
+in the :ref:`route configuration
+<envoy_api_field_route.HedgePolicy.hedge_on_per_try_timeout>`. This means that a retry
+will be issued without resetting the original request, leaving multiple upstream requests
+in flight.
+
+The value of the header should be "true" or "false", and is ignored if invalid.
+
 .. _config_http_filters_router_x-envoy-immediate-health-check-fail:
 
 x-envoy-immediate-health-check-fail
@@ -336,7 +351,8 @@ owning HTTP connection manager.
   rq_redirect, Counter, Total requests that resulted in a redirect response
   rq_direct_response, Counter, Total requests that resulted in a direct response
   rq_total, Counter, Total routed requests
-  rq_reset_after_downstream_response_started, Counter, Total requests that were reset after downstream response had started.
+  rq_reset_after_downstream_response_started, Counter, Total requests that were reset after downstream response had started
+  rq_retry_skipped_request_not_complete, Counter, Total retries that were skipped as the request is not yet complete
 
 Virtual cluster statistics are output in the
 *vhost.<virtual host name>.vcluster.<virtual cluster name>.* namespace and include the following

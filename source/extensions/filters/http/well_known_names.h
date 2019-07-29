@@ -54,6 +54,10 @@ public:
   const std::string HeaderToMetadata = "envoy.filters.http.header_to_metadata";
   // Tap filter
   const std::string Tap = "envoy.filters.http.tap";
+  // Original Src Filter
+  const std::string OriginalSrc = "envoy.filters.http.original_src";
+  // Dynamic forward proxy filter
+  const std::string DynamicForwardProxy = "envoy.filters.http.dynamic_forward_proxy";
 
   // Converts names from v1 to v2
   const Config::V1Converter v1_converter_;
@@ -65,7 +69,7 @@ public:
                        ExtAuthorization}) {}
 };
 
-typedef ConstSingleton<HttpFilterNameValues> HttpFilterNames;
+using HttpFilterNames = ConstSingleton<HttpFilterNameValues>;
 
 } // namespace HttpFilters
 } // namespace Extensions

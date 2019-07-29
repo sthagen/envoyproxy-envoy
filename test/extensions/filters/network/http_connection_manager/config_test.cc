@@ -5,6 +5,7 @@
 
 #include "extensions/filters/network/http_connection_manager/config.h"
 
+#include "test/mocks/config/mocks.h"
 #include "test/mocks/http/mocks.h"
 #include "test/mocks/network/mocks.h"
 #include "test/mocks/server/mocks.h"
@@ -28,7 +29,7 @@ envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManag
 parseHttpConnectionManagerFromV2Yaml(const std::string& yaml) {
   envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager
       http_connection_manager;
-  MessageUtil::loadFromYaml(yaml, http_connection_manager);
+  TestUtility::loadFromYaml(yaml, http_connection_manager);
   return http_connection_manager;
 }
 
@@ -37,6 +38,7 @@ public:
   NiceMock<Server::Configuration::MockFactoryContext> context_;
   Http::SlowDateProviderImpl date_provider_{context_.dispatcher().timeSource()};
   NiceMock<Router::MockRouteConfigProviderManager> route_config_provider_manager_;
+  NiceMock<Config::MockConfigProviderManager> scoped_routes_config_provider_manager_;
 };
 
 TEST_F(HttpConnectionManagerConfigTest, ValidateFail) {
@@ -45,6 +47,77 @@ TEST_F(HttpConnectionManagerConfigTest, ValidateFail) {
           envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager(),
           context_),
       ProtoValidationException);
+}
+
+// Verify that the v1 JSON config path still works. This will be deleted when v1 is fully removed.
+TEST_F(HttpConnectionManagerConfigTest, V1Config) {
+  const std::string yaml_string = R"EOF(
+drain_timeout_ms: 5000
+route_config:
+  virtual_hosts:
+  - require_ssl: all
+    routes:
+    - cluster: cluster_1
+      prefix: "/"
+    domains:
+    - www.redirect.com
+    name: redirect
+  - routes:
+    - prefix: "/"
+      cluster: cluster_1
+      runtime:
+        key: some_key
+        default: 0
+    - prefix: "/test/long/url"
+      rate_limits:
+      - actions:
+        - type: destination_cluster
+      cluster: cluster_1
+    - prefix: "/test/"
+      cluster: cluster_2
+    - prefix: "/websocket/test"
+      prefix_rewrite: "/websocket"
+      cluster: cluster_1
+    domains:
+    - "*"
+    name: integration
+codec_type: http1
+stat_prefix: router
+filters:
+- name: health_check
+  config:
+    endpoint: "/healthcheck"
+    pass_through_mode: false
+- name: rate_limit
+  config:
+    domain: foo
+- name: router
+  config: {}
+access_log:
+- format: '[%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%
+    %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT%
+    %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% "%REQ(X-FORWARDED-FOR)%"
+    "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%"
+    "%REQUEST_DURATION%" "%RESPONSE_DURATION%"'
+  path: "/dev/null"
+  filter:
+    filters:
+    - type: status_code
+      op: ">="
+      value: 500
+    - type: duration
+      op: ">="
+      value: 1000000
+    type: logical_or
+- path: "/dev/null"
+  )EOF";
+
+  ON_CALL(context_.runtime_loader_.snapshot_,
+          deprecatedFeatureEnabled("envoy.deprecated_features.v1_filter_json_config"))
+      .WillByDefault(Return(true));
+
+  HttpConnectionManagerFilterConfigFactory().createFilterFactory(
+      *Json::Factory::loadFromYamlString(yaml_string), context_);
 }
 
 TEST_F(HttpConnectionManagerConfigTest, InvalidFilterName) {
@@ -68,7 +141,8 @@ http_filters:
 
   EXPECT_THROW_WITH_MESSAGE(
       HttpConnectionManagerConfig(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                  date_provider_, route_config_provider_manager_),
+                                  date_provider_, route_config_provider_manager_,
+                                  scoped_routes_config_provider_manager_),
       EnvoyException, "Didn't find a registered implementation for name: 'foo'");
 }
 
@@ -97,13 +171,76 @@ http_filters:
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
 
   EXPECT_THAT(std::vector<Http::LowerCaseString>({Http::LowerCaseString("foo")}),
               ContainerEq(config.tracingConfig()->request_headers_for_tags_));
   EXPECT_EQ(*context_.local_info_.address_, config.localAddress());
   EXPECT_EQ("foo", config.serverName());
   EXPECT_EQ(5 * 60 * 1000, config.streamIdleTimeout().count());
+}
+
+TEST_F(HttpConnectionManagerConfigTest, SamplingDefault) {
+  const std::string yaml_string = R"EOF(
+  stat_prefix: ingress_http
+  internal_address_config:
+    unix_sockets: true
+  route_config:
+    name: local_route
+  tracing:
+    operation_name: ingress
+  http_filters:
+  - name: envoy.router
+  )EOF";
+
+  HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
+
+  EXPECT_EQ(100, config.tracingConfig()->client_sampling_.numerator());
+  EXPECT_EQ(envoy::type::FractionalPercent::HUNDRED,
+            config.tracingConfig()->client_sampling_.denominator());
+  EXPECT_EQ(10000, config.tracingConfig()->random_sampling_.numerator());
+  EXPECT_EQ(envoy::type::FractionalPercent::TEN_THOUSAND,
+            config.tracingConfig()->random_sampling_.denominator());
+  EXPECT_EQ(100, config.tracingConfig()->overall_sampling_.numerator());
+  EXPECT_EQ(envoy::type::FractionalPercent::HUNDRED,
+            config.tracingConfig()->overall_sampling_.denominator());
+}
+
+TEST_F(HttpConnectionManagerConfigTest, SamplingConfigured) {
+  const std::string yaml_string = R"EOF(
+  stat_prefix: ingress_http
+  internal_address_config:
+    unix_sockets: true
+  route_config:
+    name: local_route
+  tracing:
+    operation_name: ingress
+    client_sampling:
+      value: 1
+    random_sampling:
+      value: 2
+    overall_sampling:
+      value: 3
+  http_filters:
+  - name: envoy.router
+  )EOF";
+
+  HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
+
+  EXPECT_EQ(1, config.tracingConfig()->client_sampling_.numerator());
+  EXPECT_EQ(envoy::type::FractionalPercent::HUNDRED,
+            config.tracingConfig()->client_sampling_.denominator());
+  EXPECT_EQ(2, config.tracingConfig()->random_sampling_.numerator());
+  EXPECT_EQ(envoy::type::FractionalPercent::TEN_THOUSAND,
+            config.tracingConfig()->random_sampling_.denominator());
+  EXPECT_EQ(3, config.tracingConfig()->overall_sampling_.numerator());
+  EXPECT_EQ(envoy::type::FractionalPercent::HUNDRED,
+            config.tracingConfig()->overall_sampling_.denominator());
 }
 
 TEST_F(HttpConnectionManagerConfigTest, UnixSocketInternalAddress) {
@@ -118,7 +255,8 @@ TEST_F(HttpConnectionManagerConfigTest, UnixSocketInternalAddress) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   Network::Address::PipeInstance unixAddress{"/foo"};
   Network::Address::Ipv4Instance internalIpAddress{"127.0.0.1", 0};
   Network::Address::Ipv4Instance externalIpAddress{"12.0.0.1", 0};
@@ -137,7 +275,8 @@ TEST_F(HttpConnectionManagerConfigTest, MaxRequestHeadersKbDefault) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_EQ(60, config.maxRequestHeadersKb());
 }
 
@@ -152,7 +291,8 @@ TEST_F(HttpConnectionManagerConfigTest, MaxRequestHeadersKbConfigured) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_EQ(16, config.maxRequestHeadersKb());
 }
 
@@ -167,7 +307,8 @@ TEST_F(HttpConnectionManagerConfigTest, MaxRequestHeadersKbMaxConfigurable) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_EQ(96, config.maxRequestHeadersKb());
 }
 
@@ -183,7 +324,8 @@ TEST_F(HttpConnectionManagerConfigTest, DisabledStreamIdleTimeout) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_EQ(0, config.streamIdleTimeout().count());
 }
 
@@ -202,7 +344,8 @@ TEST_F(HttpConnectionManagerConfigTest, NormalizePathDefault) {
       .WillOnce(Invoke(&context_.runtime_loader_.snapshot_,
                        &Runtime::MockSnapshot::featureEnabledDefault));
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
 #ifdef ENVOY_NORMALIZE_PATH_BY_DEFAULT
   EXPECT_TRUE(config.shouldNormalizePath());
 #else
@@ -224,7 +367,8 @@ TEST_F(HttpConnectionManagerConfigTest, NormalizePathRuntime) {
               featureEnabled("http_connection_manager.normalize_path", An<uint64_t>()))
       .WillOnce(Return(true));
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_TRUE(config.shouldNormalizePath());
 }
 
@@ -243,7 +387,8 @@ TEST_F(HttpConnectionManagerConfigTest, NormalizePathTrue) {
               featureEnabled("http_connection_manager.normalize_path", An<uint64_t>()))
       .Times(0);
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_TRUE(config.shouldNormalizePath());
 }
 
@@ -262,7 +407,8 @@ TEST_F(HttpConnectionManagerConfigTest, NormalizePathFalse) {
               featureEnabled("http_connection_manager.normalize_path", An<uint64_t>()))
       .Times(0);
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_FALSE(config.shouldNormalizePath());
 }
 
@@ -277,7 +423,8 @@ TEST_F(HttpConnectionManagerConfigTest, ConfiguredRequestTimeout) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_EQ(53 * 1000, config.requestTimeout().count());
 }
 
@@ -292,7 +439,8 @@ TEST_F(HttpConnectionManagerConfigTest, DisabledRequestTimeout) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_EQ(0, config.requestTimeout().count());
 }
 
@@ -306,7 +454,8 @@ TEST_F(HttpConnectionManagerConfigTest, UnconfiguredRequestTimeout) {
   )EOF";
 
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(yaml_string), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
   EXPECT_EQ(0, config.requestTimeout().count());
 }
 
@@ -483,7 +632,8 @@ http_filters:
 
 TEST_F(FilterChainTest, createFilterChain) {
   HttpConnectionManagerConfig config(parseHttpConnectionManagerFromV2Yaml(basic_config_), context_,
-                                     date_provider_, route_config_provider_manager_);
+                                     date_provider_, route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
 
   Http::MockFilterChainFactoryCallbacks callbacks;
   EXPECT_CALL(callbacks, addStreamFilter(_));        // Dynamo
@@ -497,7 +647,8 @@ TEST_F(FilterChainTest, createUpgradeFilterChain) {
   hcm_config.add_upgrade_configs()->set_upgrade_type("websocket");
 
   HttpConnectionManagerConfig config(hcm_config, context_, date_provider_,
-                                     route_config_provider_manager_);
+                                     route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
 
   NiceMock<Http::MockFilterChainFactoryCallbacks> callbacks;
   // Check the case where WebSockets are configured in the HCM, and no router
@@ -543,7 +694,8 @@ TEST_F(FilterChainTest, createUpgradeFilterChainHCMDisabled) {
   hcm_config.mutable_upgrade_configs(0)->mutable_enabled()->set_value(false);
 
   HttpConnectionManagerConfig config(hcm_config, context_, date_provider_,
-                                     route_config_provider_manager_);
+                                     route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
 
   NiceMock<Http::MockFilterChainFactoryCallbacks> callbacks;
   // Check the case where WebSockets are off in the HCM, and no router config is present.
@@ -592,7 +744,8 @@ TEST_F(FilterChainTest, createCustomUpgradeFilterChain) {
                                              "envoy.http_dynamo_filter");
 
   HttpConnectionManagerConfig config(hcm_config, context_, date_provider_,
-                                     route_config_provider_manager_);
+                                     route_config_provider_manager_,
+                                     scoped_routes_config_provider_manager_);
 
   {
     Http::MockFilterChainFactoryCallbacks callbacks;
@@ -621,7 +774,8 @@ TEST_F(FilterChainTest, invalidConfig) {
   hcm_config.add_upgrade_configs()->set_upgrade_type("websocket");
 
   EXPECT_THROW_WITH_MESSAGE(HttpConnectionManagerConfig(hcm_config, context_, date_provider_,
-                                                        route_config_provider_manager_),
+                                                        route_config_provider_manager_,
+                                                        scoped_routes_config_provider_manager_),
                             EnvoyException,
                             "Error: multiple upgrade configs with the same name: 'websocket'");
 }
