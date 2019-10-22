@@ -43,6 +43,7 @@ Version history
 * http: remove h2c upgrade headers for HTTP/1 as h2c upgrades are currently not supported.
 * http: absolute URL support is now on by default. The prior behavior can be reinstated by setting :ref:`allow_absolute_url <envoy_api_field_core.Http1ProtocolOptions.allow_absolute_url>` to false.
 * http: support :ref:`host rewrite <envoy_api_msg_config.filter.http.dynamic_forward_proxy.v2alpha.PerRouteConfig>` in the dynamic forward proxy.
+* http: support :ref:`disabling the filter per route <envoy_api_msg_config.filter.http.grpc_http1_reverse_bridge.v2alpha1.FilterConfigPerRoute>` in the grpc http1 reverse bridge filter.
 * listeners: added :ref:`continue_on_listener_filters_timeout <envoy_api_field_Listener.continue_on_listener_filters_timeout>` to configure whether a listener will still create a connection when listener filters time out.
 * listeners: added :ref:`HTTP inspector listener filter <config_listener_filters_http_inspector>`.
 * listeners: added :ref:`connection balancer <envoy_api_field_Listener.connection_balance_config>`
@@ -70,6 +71,9 @@ Version history
   header mutations wins flag <envoy_api_field_RouteConfiguration.most_specific_header_mutations_wins>`
 * router: added :ref:`respect_expected_rq_timeout <envoy_api_field_config.filter.http.router.v2.Router.respect_expected_rq_timeout>` that instructs ingress Envoy to respect :ref:`config_http_filters_router_x-envoy-expected-rq-timeout-ms` header, populated by egress Envoy, when deriving timeout for upstream cluster.
 * router: added new :ref:`retriable request headers <envoy_api_field_route.RetryPolicy.retriable_request_headers>` to retry policies. Retries can now be configured to only trigger on request header match.
+* router: added the ability to match a route based on whether a TLS certificate has been
+  :ref:`presented <envoy_api_field_route.RouteMatch.TlsContextMatchOptions.presented>` by the
+  downstream connection.
 * router check tool: add coverage reporting & enforcement.
 * router check tool: add comprehensive coverage reporting.
 * router check tool: add deprecated field check.
