@@ -16,6 +16,7 @@ Version history
 * decompressor: remove decompressor hard assert failure and replace with an error flag.
 * ext_authz: added :ref:`configurable ability<envoy_api_field_config.filter.http.ext_authz.v2.ExtAuthz.include_peer_certificate>` to send the :ref:`certificate<envoy_api_field_service.auth.v2.AttributeContext.Peer.certificate>` to the `ext_authz` service.
 * health check: gRPC health checker sets the gRPC deadline to the configured timeout duration.
+* health check: added :ref:`TlsOptions <envoy_api_msg_core.HealthCheck.TlsOptions>` to allow TLS configuration overrides.
 * health check: added :ref:`service_name_matcher <envoy_api_field_core.HealthCheck.HttpHealthCheck.service_name_matcher>` to better compare the service name patterns for health check identity.
 * http: added strict validation that CONNECT is refused as it is not yet implemented. This can be reversed temporarily by setting the runtime feature `envoy.reloadable_features.strict_method_validation` to false.
 * http: added support for http1 trailers. To enable use :ref:`enable_trailers <envoy_api_field_core.Http1ProtocolOptions.enable_trailers>`.
@@ -44,6 +45,7 @@ Version history
 * router: added :ref:`auto_sni <envoy_api_field_core.UpstreamHttpProtocolOptions.auto_sni>` to support setting SNI to transport socket for new upstream connections based on the downstream HTTP host/authority header.
 * server: added the :option:`--disable-extensions` CLI option, to disable extensions at startup.
 * server: fixed a bug in config validation for configs with runtime layers.
+* server: added :ref:`workers_started <config_listener_manager_stats>` that indicates whether listeners have been fully initialized on workers.
 * tcp_proxy: added :ref:`ClusterWeight.metadata_match<envoy_api_field_config.filter.network.tcp_proxy.v2.TcpProxy.WeightedCluster.ClusterWeight.metadata_match>`.
 * tcp_proxy: added :ref:`hash_policy<envoy_api_field_config.filter.network.tcp_proxy.v2.TcpProxy.hash_policy>`.
 * thrift_proxy: added support for cluster header based routing.
@@ -55,6 +57,7 @@ Version history
 * tracing: added initial support for AWS X-Ray (local sampling rules only) :ref:`X-Ray Tracing <envoy_api_msg_config.trace.v2alpha.XRayConfig>`.
 * tracing: added tags for gRPC request path, authority, content-type and timeout.
 * udp: added initial support for :ref:`UDP proxy <config_udp_listener_filters_udp_proxy>`
+* fault: fixed an issue where the http fault filter would repeatedly check the percentage of abort/delay when the `x-envoy-downstream-service-cluster` header was included in the request to ensure that the actual percentage of abort/delay matches the configuration of the filter.
 
 1.12.2 (December 10, 2019)
 ==========================
