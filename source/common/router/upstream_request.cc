@@ -78,6 +78,9 @@ UpstreamRequest::~UpstreamRequest() {
     // Allows for testing.
     per_try_timeout_->disableTimer();
   }
+  if (max_stream_duration_timer_ != nullptr) {
+    max_stream_duration_timer_->disableTimer();
+  }
   clearRequestEncoder();
 
   // If desired, fire the per-try histogram when the UpstreamRequest
@@ -154,6 +157,11 @@ void UpstreamRequest::decodeTrailers(Http::ResponseTrailerMapPtr&& trailers) {
   }
   parent_.onUpstreamTrailers(std::move(trailers), *this);
 }
+const RouteEntry& UpstreamRequest::routeEntry() const { return *parent_.routeEntry(); }
+
+const Network::Connection& UpstreamRequest::connection() const {
+  return *parent_.callbacks()->connection();
+}
 
 void UpstreamRequest::decodeMetadata(Http::MetadataMapPtr&& metadata_map) {
   parent_.onUpstreamMetadata(std::move(metadata_map));
@@ -189,7 +197,8 @@ void UpstreamRequest::encodeData(Buffer::Instance& data, bool end_stream) {
     if (!buffered_request_body_) {
       buffered_request_body_ = std::make_unique<Buffer::WatermarkBuffer>(
           [this]() -> void { this->enableDataFromDownstreamForFlowControl(); },
-          [this]() -> void { this->disableDataFromDownstreamForFlowControl(); });
+          [this]() -> void { this->disableDataFromDownstreamForFlowControl(); },
+          []() -> void { /* TODO(adisuissa): Handle overflow watermark */ });
       buffered_request_body_->setWatermarks(parent_.callbacks()->decoderBufferLimit());
     }
 
@@ -377,12 +386,23 @@ void UpstreamRequest::onPoolReady(
 
   // Make sure that when we are forwarding CONNECT payload we do not do so until
   // the upstream has accepted the CONNECT request.
-  if (conn_pool_->protocol().has_value() && headers->Method() &&
-      headers->Method()->value().getStringView() == Http::Headers::get().MethodValues.Connect) {
+  if (conn_pool_->protocol().has_value() &&
+      headers->getMethodValue() == Http::Headers::get().MethodValues.Connect) {
     paused_for_connect_ = true;
   }
 
+  if (upstream_host_->cluster().commonHttpProtocolOptions().has_max_stream_duration()) {
+    const auto max_stream_duration = std::chrono::milliseconds(DurationUtil::durationToMilliseconds(
+        upstream_host_->cluster().commonHttpProtocolOptions().max_stream_duration()));
+    if (max_stream_duration.count()) {
+      max_stream_duration_timer_ = parent_.callbacks()->dispatcher().createTimer(
+          [this]() -> void { onStreamMaxDurationReached(); });
+      max_stream_duration_timer_->enableTimer(max_stream_duration);
+    }
+  }
+
   upstream_->encodeHeaders(*parent_.downstreamHeaders(), shouldSendEndStream());
+
   calling_encode_headers_ = false;
 
   if (!paused_for_connect_) {
@@ -424,6 +444,13 @@ void UpstreamRequest::encodeBodyAndTrailers() {
       upstream_timing_.onLastUpstreamTxByteSent(parent_.callbacks()->dispatcher().timeSource());
     }
   }
+}
+
+void UpstreamRequest::onStreamMaxDurationReached() {
+  upstream_host_->cluster().stats().upstream_rq_max_duration_reached_.inc();
+
+  // The upstream had closed then try to retry along with retry policy.
+  parent_.onStreamMaxDurationReached(*this);
 }
 
 void UpstreamRequest::clearRequestEncoder() {
@@ -492,127 +519,6 @@ void UpstreamRequest::enableDataFromDownstreamForFlowControl() {
   ASSERT(downstream_data_disabled_ != 0);
   if (downstream_data_disabled_ > 0) {
     --downstream_data_disabled_;
-  }
-}
-
-void HttpConnPool::newStream(GenericConnectionPoolCallbacks* callbacks) {
-  callbacks_ = callbacks;
-  // It's possible for a reset to happen inline within the newStream() call. In this case, we
-  // might get deleted inline as well. Only write the returned handle out if it is not nullptr to
-  // deal with this case.
-  Http::ConnectionPool::Cancellable* handle =
-      conn_pool_.newStream(*callbacks->upstreamRequest(), *this);
-  if (handle) {
-    conn_pool_stream_handle_ = handle;
-  }
-}
-
-void TcpConnPool::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_data,
-                              Upstream::HostDescriptionConstSharedPtr host) {
-  upstream_handle_ = nullptr;
-  Network::Connection& latched_conn = conn_data->connection();
-  auto upstream =
-      std::make_unique<TcpUpstream>(callbacks_->upstreamRequest(), std::move(conn_data));
-  callbacks_->onPoolReady(std::move(upstream), host, latched_conn.localAddress(),
-                          latched_conn.streamInfo());
-}
-
-bool HttpConnPool::cancelAnyPendingRequest() {
-  if (conn_pool_stream_handle_) {
-    conn_pool_stream_handle_->cancel();
-    conn_pool_stream_handle_ = nullptr;
-    return true;
-  }
-  return false;
-}
-
-absl::optional<Http::Protocol> HttpConnPool::protocol() const { return conn_pool_.protocol(); }
-
-void HttpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason,
-                                 absl::string_view transport_failure_reason,
-                                 Upstream::HostDescriptionConstSharedPtr host) {
-  callbacks_->onPoolFailure(reason, transport_failure_reason, host);
-}
-
-void HttpConnPool::onPoolReady(Http::RequestEncoder& request_encoder,
-                               Upstream::HostDescriptionConstSharedPtr host,
-                               const StreamInfo::StreamInfo& info) {
-  conn_pool_stream_handle_ = nullptr;
-  auto upstream = std::make_unique<HttpUpstream>(*callbacks_->upstreamRequest(), &request_encoder);
-  callbacks_->onPoolReady(std::move(upstream), host,
-                          request_encoder.getStream().connectionLocalAddress(), info);
-}
-
-TcpUpstream::TcpUpstream(UpstreamRequest* upstream_request,
-                         Tcp::ConnectionPool::ConnectionDataPtr&& upstream)
-    : upstream_request_(upstream_request), upstream_conn_data_(std::move(upstream)) {
-  upstream_conn_data_->connection().enableHalfClose(true);
-  upstream_conn_data_->addUpstreamCallbacks(*this);
-}
-
-void TcpUpstream::encodeData(Buffer::Instance& data, bool end_stream) {
-  upstream_conn_data_->connection().write(data, end_stream);
-}
-
-void TcpUpstream::encodeHeaders(const Http::RequestHeaderMap&, bool end_stream) {
-  // Headers should only happen once, so use this opportunity to add the proxy
-  // proto header, if configured.
-  ASSERT(upstream_request_->parent().routeEntry()->connectConfig().has_value());
-  Buffer::OwnedImpl data;
-  auto& connect_config = upstream_request_->parent().routeEntry()->connectConfig().value();
-  if (connect_config.has_proxy_protocol_config()) {
-    const Network::Connection& connection = *upstream_request_->parent().callbacks()->connection();
-    Extensions::Common::ProxyProtocol::generateProxyProtoHeader(
-        connect_config.proxy_protocol_config(), connection, data);
-  }
-
-  if (data.length() != 0 || end_stream) {
-    upstream_conn_data_->connection().write(data, end_stream);
-  }
-}
-
-void TcpUpstream::encodeTrailers(const Http::RequestTrailerMap&) {
-  Buffer::OwnedImpl data;
-  upstream_conn_data_->connection().write(data, true);
-}
-
-void TcpUpstream::readDisable(bool disable) {
-  if (upstream_conn_data_->connection().state() != Network::Connection::State::Open) {
-    return;
-  }
-  upstream_conn_data_->connection().readDisable(disable);
-}
-
-void TcpUpstream::resetStream() {
-  upstream_request_ = nullptr;
-  upstream_conn_data_->connection().close(Network::ConnectionCloseType::NoFlush);
-}
-
-void TcpUpstream::onUpstreamData(Buffer::Instance& data, bool end_stream) {
-  if (!sent_headers_) {
-    Http::ResponseHeaderMapPtr headers{
-        Http::createHeaderMap<Http::ResponseHeaderMapImpl>({{Http::Headers::get().Status, "200"}})};
-    upstream_request_->decodeHeaders(std::move(headers), false);
-    sent_headers_ = true;
-  }
-  upstream_request_->decodeData(data, end_stream);
-}
-
-void TcpUpstream::onEvent(Network::ConnectionEvent event) {
-  if (event != Network::ConnectionEvent::Connected && upstream_request_) {
-    upstream_request_->onResetStream(Http::StreamResetReason::ConnectionTermination, "");
-  }
-}
-
-void TcpUpstream::onAboveWriteBufferHighWatermark() {
-  if (upstream_request_) {
-    upstream_request_->disableDataFromDownstreamForFlowControl();
-  }
-}
-
-void TcpUpstream::onBelowWriteBufferLowWatermark() {
-  if (upstream_request_) {
-    upstream_request_->enableDataFromDownstreamForFlowControl();
   }
 }
 

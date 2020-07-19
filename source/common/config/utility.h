@@ -1,6 +1,7 @@
 #pragma once
 
 #include "envoy/api/api.h"
+#include "envoy/common/random_generator.h"
 #include "envoy/config/bootstrap/v3/bootstrap.pb.h"
 #include "envoy/config/cluster/v3/cluster.pb.h"
 #include "envoy/config/core/v3/address.pb.h"
@@ -157,23 +158,23 @@ public:
 
   /**
    * Check the validity of a cluster backing an api config source. Throws on error.
-   * @param clusters the clusters currently loaded in the cluster manager.
+   * @param primary_clusters the API config source eligible clusters.
    * @param cluster_name the cluster name to validate.
    * @param config_source the config source typed name.
    * @throws EnvoyException when an API config doesn't have a statically defined non-EDS cluster.
    */
-  static void validateClusterName(const Upstream::ClusterManager::ClusterInfoMap& clusters,
+  static void validateClusterName(const Upstream::ClusterManager::ClusterSet& primary_clusters,
                                   const std::string& cluster_name,
                                   const std::string& config_source);
 
   /**
    * Potentially calls Utility::validateClusterName, if a cluster name can be found.
-   * @param clusters the clusters currently loaded in the cluster manager.
+   * @param primary_clusters the API config source eligible clusters.
    * @param api_config_source the config source to validate.
    * @throws EnvoyException when an API config doesn't have a statically defined non-EDS cluster.
    */
   static void checkApiConfigSourceSubscriptionBackingCluster(
-      const Upstream::ClusterManager::ClusterInfoMap& clusters,
+      const Upstream::ClusterManager::ClusterSet& primary_clusters,
       const envoy::config::core::v3::ApiConfigSource& api_config_source);
 
   /**
@@ -183,6 +184,18 @@ public:
    */
   static RateLimitSettings
   parseRateLimitSettings(const envoy::config::core::v3::ApiConfigSource& api_config_source);
+
+  /**
+   * Generate a ControlPlaneStats object from stats scope.
+   * @param scope for stats.
+   * @return ControlPlaneStats for scope.
+   */
+  static ControlPlaneStats generateControlPlaneStats(Stats::Scope& scope) {
+    const std::string control_plane_prefix = "control_plane.";
+    return {ALL_CONTROL_PLANE_STATS(POOL_COUNTER_PREFIX(scope, control_plane_prefix),
+                                    POOL_GAUGE_PREFIX(scope, control_plane_prefix),
+                                    POOL_TEXT_READOUT_PREFIX(scope, control_plane_prefix))};
+  }
 
   /**
    * Generate a SubscriptionStats object from stats scope.
@@ -382,7 +395,7 @@ public:
    */
   template <typename T>
   static BackOffStrategyPtr prepareDnsRefreshStrategy(const T& config, uint64_t dns_refresh_rate_ms,
-                                                      Runtime::RandomGenerator& random) {
+                                                      Random::RandomGenerator& random) {
     if (config.has_dns_failure_refresh_rate()) {
       uint64_t base_interval_ms =
           PROTOBUF_GET_MS_REQUIRED(config.dns_failure_refresh_rate(), base_interval);

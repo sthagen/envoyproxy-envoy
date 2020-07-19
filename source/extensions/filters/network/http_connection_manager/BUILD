@@ -1,14 +1,14 @@
-licenses(["notice"])  # Apache 2
-
-# L4 network filter that implements HTTP protocol handling and filtering. This filter internally
-# drives all of the L7 HTTP filters.
-# Public docs: docs/root/configuration/http_conn_man/http_conn_man.rst
-
 load(
     "//bazel:envoy_build_system.bzl",
     "envoy_cc_extension",
     "envoy_package",
 )
+
+licenses(["notice"])  # Apache 2
+
+# L4 network filter that implements HTTP protocol handling and filtering. This filter internally
+# drives all of the L7 HTTP filters.
+# Public docs: docs/root/configuration/http_conn_man/http_conn_man.rst
 
 envoy_package()
 
@@ -35,9 +35,12 @@ envoy_cc_extension(
         "//source/common/http:default_server_string_lib",
         "//source/common/http:request_id_extension_lib",
         "//source/common/http:utility_lib",
+        "//source/common/http/http1:codec_legacy_lib",
         "//source/common/http/http1:codec_lib",
+        "//source/common/http/http2:codec_legacy_lib",
         "//source/common/http/http2:codec_lib",
         "//source/common/json:json_loader_lib",
+        "//source/common/local_reply:local_reply_lib",
         "//source/common/protobuf:utility_lib",
         "//source/common/router:rds_lib",
         "//source/common/router:scoped_rds_lib",

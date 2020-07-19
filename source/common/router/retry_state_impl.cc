@@ -13,6 +13,7 @@
 #include "common/http/codes.h"
 #include "common/http/headers.h"
 #include "common/http/utility.h"
+#include "common/runtime/runtime_features.h"
 
 namespace Envoy {
 namespace Router {
@@ -31,11 +32,12 @@ const uint32_t RetryPolicy::RETRY_ON_GRPC_DEADLINE_EXCEEDED;
 const uint32_t RetryPolicy::RETRY_ON_GRPC_RESOURCE_EXHAUSTED;
 const uint32_t RetryPolicy::RETRY_ON_GRPC_UNAVAILABLE;
 
-RetryStatePtr
-RetryStateImpl::create(const RetryPolicy& route_policy, Http::RequestHeaderMap& request_headers,
-                       const Upstream::ClusterInfo& cluster, const VirtualCluster* vcluster,
-                       Runtime::Loader& runtime, Runtime::RandomGenerator& random,
-                       Event::Dispatcher& dispatcher, Upstream::ResourcePriority priority) {
+RetryStatePtr RetryStateImpl::create(const RetryPolicy& route_policy,
+                                     Http::RequestHeaderMap& request_headers,
+                                     const Upstream::ClusterInfo& cluster,
+                                     const VirtualCluster* vcluster, Runtime::Loader& runtime,
+                                     Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
+                                     Upstream::ResourcePriority priority) {
   RetryStatePtr ret;
 
   // We short circuit here and do not bother with an allocation if there is no chance we will retry.
@@ -45,16 +47,24 @@ RetryStateImpl::create(const RetryPolicy& route_policy, Http::RequestHeaderMap& 
                                  dispatcher, priority));
   }
 
+  // Consume all retry related headers to avoid them being propagated to the upstream
   request_headers.removeEnvoyRetryOn();
   request_headers.removeEnvoyRetryGrpcOn();
   request_headers.removeEnvoyMaxRetries();
+  if (Runtime::runtimeFeatureEnabled("envoy.reloadable_features.consume_all_retry_headers")) {
+    request_headers.removeEnvoyHedgeOnPerTryTimeout();
+    request_headers.removeEnvoyRetriableHeaderNames();
+    request_headers.removeEnvoyRetriableStatusCodes();
+    request_headers.removeEnvoyUpstreamRequestPerTryTimeoutMs();
+  }
+
   return ret;
 }
 
 RetryStateImpl::RetryStateImpl(const RetryPolicy& route_policy,
                                Http::RequestHeaderMap& request_headers,
                                const Upstream::ClusterInfo& cluster, const VirtualCluster* vcluster,
-                               Runtime::Loader& runtime, Runtime::RandomGenerator& random,
+                               Runtime::Loader& runtime, Random::RandomGenerator& random,
                                Event::Dispatcher& dispatcher, Upstream::ResourcePriority priority)
     : cluster_(cluster), vcluster_(vcluster), runtime_(runtime), random_(random),
       dispatcher_(dispatcher), retry_on_(route_policy.retryOn()),
@@ -83,11 +93,10 @@ RetryStateImpl::RetryStateImpl(const RetryPolicy& route_policy,
 
   // Merge in the headers.
   if (request_headers.EnvoyRetryOn()) {
-    retry_on_ |= parseRetryOn(request_headers.EnvoyRetryOn()->value().getStringView()).first;
+    retry_on_ |= parseRetryOn(request_headers.getEnvoyRetryOnValue()).first;
   }
   if (request_headers.EnvoyRetryGrpcOn()) {
-    retry_on_ |=
-        parseRetryGrpcOn(request_headers.EnvoyRetryGrpcOn()->value().getStringView()).first;
+    retry_on_ |= parseRetryGrpcOn(request_headers.getEnvoyRetryGrpcOnValue()).first;
   }
 
   const auto& retriable_request_headers = route_policy.retriableRequestHeaders();
@@ -107,15 +116,15 @@ RetryStateImpl::RetryStateImpl(const RetryPolicy& route_policy,
   }
   if (retry_on_ != 0 && request_headers.EnvoyMaxRetries()) {
     uint64_t temp;
-    if (absl::SimpleAtoi(request_headers.EnvoyMaxRetries()->value().getStringView(), &temp)) {
+    if (absl::SimpleAtoi(request_headers.getEnvoyMaxRetriesValue(), &temp)) {
       // The max retries header takes precedence if set.
       retries_remaining_ = temp;
     }
   }
 
   if (request_headers.EnvoyRetriableStatusCodes()) {
-    for (const auto code : StringUtil::splitToken(
-             request_headers.EnvoyRetriableStatusCodes()->value().getStringView(), ",")) {
+    for (const auto code :
+         StringUtil::splitToken(request_headers.getEnvoyRetriableStatusCodesValue(), ",")) {
       unsigned int out;
       if (absl::SimpleAtoi(code, &out)) {
         retriable_status_codes_.emplace_back(out);
