@@ -15,6 +15,7 @@ API
 ARN
 ASAN
 ASCII
+ASM
 ASSERTs
 AST
 AWS
@@ -24,8 +25,15 @@ BSON
 BPF
 CAS
 CB
+CDN
 CDS
 CEL
+DSR
+HEXDIG
+HEXDIGIT
+LTT
+OWS
+TIDs
 ceil
 CHACHA
 CHLO
@@ -64,16 +72,19 @@ DFATAL
 DGRAM
 DLOG
 DNS
+DNSSEC
 DQUOTE
 DRYs
 DS
 DST
 DW
+DWORD
 EADDRINUSE
 EADDRNOTAVAIL
 EAGAIN
 ECDH
 ECDHE
+ECDS
 ECDSA
 ECDSAs
 ECMP
@@ -84,12 +95,14 @@ EINPROGRESS
 EINVAL
 ELB
 EMSGSIZE
+ENOENT
 ENOTFOUND
 ENOTSUP
 ENV
 EOF
 EOS
 EOY
+EPOLLOUT
 EPOLLRDHUP
 EQ
 ERANGE
@@ -146,6 +159,7 @@ IDL
 IETF
 INADDR
 INET
+INVAL
 IO
 IOS
 IP
@@ -209,7 +223,9 @@ NS
 NUL
 Nilsson
 Nonhashable
+Oauth
 OCSP
+OID
 OK
 OOM
 OOMs
@@ -293,6 +309,7 @@ SPIFFE
 SPKI
 SQL
 SR
+SRCDIR
 SRDS
 SRV
 SS
@@ -348,6 +365,8 @@ WRONGPASS
 WRR
 WS
 WSA
+WSABUF
+WSAEINVAL
 WSS
 Welford's
 Wi
@@ -389,6 +408,7 @@ argv
 artisanal
 ary
 asctime
+asm
 async
 atoi
 atomicity
@@ -413,11 +433,13 @@ backtracing
 balancer
 balancers
 barbaz
+basename
 baz
 bazel
 behaviour
 benchmarked
 bidi
+bignum
 bitfield
 bitset
 bitwise
@@ -428,9 +450,11 @@ bool
 boolean
 booleans
 bools
+boringssl
 borks
 broadcasted
 buf
+buflen
 bugprone
 builtin
 builtins
@@ -438,6 +462,7 @@ bulkstrings
 bursty
 bytecode
 bytestream
+bytestring
 cacheable
 cacheability
 callee
@@ -455,6 +480,7 @@ canonicalizing
 cardinality
 casted
 charset
+checkin
 checksum
 chrono
 chroot
@@ -552,7 +578,9 @@ dgst
 dir
 dirname
 djb
+downcalls
 downcasted
+downcased
 downstreams
 drainable
 dtor
@@ -563,6 +591,7 @@ dynamodb
 emplace
 emplaced
 emscripten
+emsdk
 enablement
 encodings
 endian
@@ -594,9 +623,11 @@ failover
 fallbacks
 fastbuild
 favicon
+fbs
 fcntl
 fd
 fds
+fdstat
 filename
 filenames
 fileno
@@ -604,6 +635,8 @@ filesystem
 firefox
 fixdate
 fixup
+flatbuffer
+flatc
 fmt
 fmtlib
 fn
@@ -616,6 +649,7 @@ func
 functor
 functors
 gRPC
+gateway
 gcov
 genrule
 getaddrinfo
@@ -633,6 +667,7 @@ gmock
 goog
 google
 goto
+gso
 gzip
 hackery
 hacky
@@ -707,6 +742,8 @@ kv
 kvs
 lala
 latencies
+ld
+ldd
 len
 lenenc
 lexically
@@ -740,6 +777,7 @@ lua
 lyft
 maglev
 malloc
+marshaller
 matchable
 matcher
 matchers
@@ -784,6 +822,7 @@ mysql
 namelen
 nameserver
 namespace
+namespaced
 namespaces
 namespacing
 nan
@@ -806,6 +845,7 @@ nullopt
 nullptr
 num
 numkeys
+oauth
 observability
 ocagent
 offsetof
@@ -846,6 +886,7 @@ pausable
 pcall
 pcap
 pclose
+performant
 pfctl
 pipelined
 pipelining
@@ -878,6 +919,7 @@ preflight
 preorder
 prepend
 prepended
+prepends
 prev
 probabilistically
 proc
@@ -920,6 +962,7 @@ realloc
 rebalanced
 rebalancing
 rebuffer
+rebuilder
 reconnection
 recurse
 recv
@@ -945,11 +988,13 @@ rele
 releasor
 reloadable
 remoting
+renderers
 reparse
 repeatability
 reperform
 repicked
 repo
+reproducibility
 requirepass
 reselecting
 reserialize
@@ -963,8 +1008,10 @@ resolvers
 responder
 restarter
 resync
+retransmitting
 retriable
 retriggers
+revalidated
 revalidation
 rmdir
 rocketmq
@@ -990,6 +1037,8 @@ sched
 schedulable
 schemas
 scopekey
+sd
+secp
 sendmsg
 sendmmsg
 sendto
@@ -1001,6 +1050,7 @@ setsockopt
 sig
 sigaction
 sigactions
+siginfo
 signalstack
 siloed
 sim
@@ -1027,6 +1077,7 @@ stateful
 statsd
 stderr
 stdev
+stdin
 stdout
 stmt
 str
@@ -1172,6 +1223,7 @@ vptr
 wakeup
 wakeups
 websocket
+wepoll
 whitespace
 whitespaces
 wildcard

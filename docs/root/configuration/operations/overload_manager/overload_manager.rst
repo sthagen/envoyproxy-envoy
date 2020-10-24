@@ -40,19 +40,55 @@ The overload manager uses Envoy's :ref:`extension <extending>` framework for def
 resource monitors. Envoy's builtin resource monitors are listed
 :ref:`here <config_resource_monitors>`.
 
+Triggers
+--------
+
+Triggers connect resource monitors to actions. There are two types of triggers supported:
+
+.. list-table::
+  :header-rows: 1
+  :widths: 1, 2
+
+  * - Type
+    - Description
+  * - :ref:`threshold <envoy_v3_api_msg_config.overload.v3.ThresholdTrigger>`
+    - Sets the action state to 1 (= *saturated*) when the resource pressure is above a threshold, and to 0 otherwise.
+  * - :ref:`scaled <envoy_v3_api_msg_config.overload.v3.ScaledTrigger>`
+    - Sets the action state to 0 when the resource pressure is below the
+      :ref:`scaling_threshold <envoy_v3_api_field_config.overload.v3.ScaledTrigger.scaling_threshold>`,
+      `(pressure - scaling_threshold)/(saturation_threshold - scaling_threshold)` when
+      `scaling_threshold < pressure < saturation_threshold`, and to 1 (*saturated*) when the
+      pressure is above the
+      :ref:`saturation_threshold <envoy_v3_api_field_config.overload.v3.ScaledTrigger.saturation_threshold>`."
+
+.. _config_overload_manager_overload_actions:
+
 Overload actions
 ----------------
 
 The following overload actions are supported:
 
-.. csv-table::
-  :header: Name, Description
+.. list-table::
+  :header-rows: 1
   :widths: 1, 2
 
-  envoy.overload_actions.stop_accepting_requests, Envoy will immediately respond with a 503 response code to new requests
-  envoy.overload_actions.disable_http_keepalive, Envoy will disable keepalive on HTTP/1.x responses
-  envoy.overload_actions.stop_accepting_connections, Envoy will stop accepting new network connections on its configured listeners
-  envoy.overload_actions.shrink_heap, Envoy will periodically try to shrink the heap by releasing free memory to the system
+  * - Name
+    - Description
+
+  * - envoy.overload_actions.stop_accepting_requests
+    - Envoy will immediately respond with a 503 response code to new requests
+
+  * - envoy.overload_actions.disable_http_keepalive
+    - Envoy will stop accepting streams on incoming HTTP connections
+
+  * - envoy.overload_actions.stop_accepting_connections
+    - Envoy will stop accepting new network connections on its configured listeners
+
+  * - envoy.overload_actions.reject_incoming_connections
+    - Envoy will reject incoming connections on its configured listeners without processing any data
+
+  * - envoy.overload_actions.shrink_heap
+    - Envoy will periodically try to shrink the heap by releasing free memory to the system
 
 Limiting Active Connections
 ---------------------------
@@ -99,4 +135,5 @@ with the following statistics:
   :header: Name, Type, Description
   :widths: 1, 1, 2
 
-  active, Gauge, "Active state of the action (0=inactive, 1=active)"
+  active, Gauge, "Active state of the action (0=scaling, 1=saturated)"
+  scale_percent, Gauge, "Scaled value of the action as a percent (0-99=scaling, 100=saturated)"

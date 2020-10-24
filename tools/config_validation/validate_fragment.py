@@ -3,7 +3,7 @@
 # Example usage:
 #
 # bazel run //tools/config_validation:validate_fragment -- \
-#   envoy.config.bootstrap.v3.Bootstrap $PWD/configs/google_com_proxy.v2.yaml
+#   envoy.config.bootstrap.v3.Bootstrap $PWD/configs/envoyproxy_io_proxy.yaml
 
 import json
 import pathlib
@@ -69,4 +69,4 @@ if __name__ == '__main__':
   message_type = parsed_args.message_type
   content = parsed_args.s if (parsed_args.fragment_path is None) else pathlib.Path(
       parsed_args.fragment_path).read_text()
-  ValidateFragment(message_type, yaml.load(content, Loader=yaml.FullLoader))
+  ValidateFragment(message_type, yaml.safe_load(content))

@@ -207,7 +207,7 @@ public:
                ShadowWriterPtr&& shadow_writer,
                const envoy::extensions::filters::http::router::v3::Router& config)
       : FilterConfig(stat_prefix, context.localInfo(), context.scope(), context.clusterManager(),
-                     context.runtime(), context.random(), std::move(shadow_writer),
+                     context.runtime(), context.api().randomGenerator(), std::move(shadow_writer),
                      PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, dynamic_stats, true),
                      config.start_child_span(), config.suppress_envoy_headers(),
                      config.respect_expected_rq_timeout(), config.strict_check_headers(),
@@ -473,11 +473,13 @@ private:
                           bool dropped);
   void chargeUpstreamAbort(Http::Code code, bool dropped, UpstreamRequest& upstream_request);
   void cleanup();
-  virtual RetryStatePtr
-  createRetryState(const RetryPolicy& policy, Http::RequestHeaderMap& request_headers,
-                   const Upstream::ClusterInfo& cluster, const VirtualCluster* vcluster,
-                   Runtime::Loader& runtime, Random::RandomGenerator& random,
-                   Event::Dispatcher& dispatcher, Upstream::ResourcePriority priority) PURE;
+  virtual RetryStatePtr createRetryState(const RetryPolicy& policy,
+                                         Http::RequestHeaderMap& request_headers,
+                                         const Upstream::ClusterInfo& cluster,
+                                         const VirtualCluster* vcluster, Runtime::Loader& runtime,
+                                         Random::RandomGenerator& random,
+                                         Event::Dispatcher& dispatcher, TimeSource& time_source,
+                                         Upstream::ResourcePriority priority) PURE;
 
   std::unique_ptr<GenericConnPool> createConnPool();
   UpstreamRequestPtr createUpstreamRequest();
@@ -567,6 +569,7 @@ private:
                                  const Upstream::ClusterInfo& cluster,
                                  const VirtualCluster* vcluster, Runtime::Loader& runtime,
                                  Random::RandomGenerator& random, Event::Dispatcher& dispatcher,
+                                 TimeSource& time_source,
                                  Upstream::ResourcePriority priority) override;
 };
 

@@ -37,7 +37,10 @@ envoy_cc_test(
         "//bazel:linux": ["quic_platform_test.cc"],
         "//conditions:default": [],
     }),
-    copts = ["-Wno-unused-parameter"],
+    copts = select({
+        "//bazel:windows_x86_64": [],
+        "//conditions:default": ["-Wno-unused-parameter"],
+    }),
     data = ["//test/extensions/transport_sockets/tls/test_data:certs"],
     external_deps = ["quiche_quic_platform"],
     tags = ["nofips"],
@@ -222,11 +225,6 @@ envoy_cc_test_library(
     deps = [
         ":quic_platform_expect_bug_impl_lib",
     ],
-)
-
-envoy_cc_test_library(
-    name = "spdy_platform_test_impl_lib",
-    hdrs = ["spdy_test_impl.h"],
 )
 
 envoy_cc_test(

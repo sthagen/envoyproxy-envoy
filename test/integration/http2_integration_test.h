@@ -1,14 +1,14 @@
 #pragma once
 
+#include <memory>
+
 #include "envoy/config/bootstrap/v3/bootstrap.pb.h"
 #include "envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.h"
 
-#include "test/common/http/http2/http2_frame.h"
 #include "test/integration/http_integration.h"
 
+#include "absl/synchronization/mutex.h"
 #include "gtest/gtest.h"
-
-using Envoy::Http::Http2::Http2Frame;
 
 namespace Envoy {
 class Http2IntegrationTest : public testing::TestWithParam<Network::Address::IpVersion>,
@@ -67,33 +67,4 @@ public:
   void runHeaderOnlyTest(bool send_request_body, size_t body_size);
 };
 
-class Http2FrameIntegrationTest : public testing::TestWithParam<Network::Address::IpVersion>,
-                                  public HttpIntegrationTest {
-public:
-  Http2FrameIntegrationTest() : HttpIntegrationTest(Http::CodecClient::Type::HTTP2, GetParam()) {}
-
-protected:
-  void startHttp2Session();
-  Http2Frame readFrame();
-  void sendFrame(const Http2Frame& frame);
-  virtual void beginSession();
-
-  IntegrationTcpClientPtr tcp_client_;
-};
-
-class Http2FloodMitigationTest : public Http2FrameIntegrationTest {
-public:
-  Http2FloodMitigationTest() {
-    config_helper_.addConfigModifier(
-        [](envoy::extensions::filters::network::http_connection_manager::v3::HttpConnectionManager&
-               hcm) { hcm.mutable_delayed_close_timeout()->set_seconds(1); });
-  }
-
-protected:
-  void floodServer(const Http2Frame& frame, const std::string& flood_stat);
-  void floodServer(absl::string_view host, absl::string_view path,
-                   Http2Frame::ResponseStatus expected_http_status, const std::string& flood_stat);
-  void setNetworkConnectionBufferSize();
-  void beginSession() override;
-};
 } // namespace Envoy

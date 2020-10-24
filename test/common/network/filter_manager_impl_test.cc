@@ -21,7 +21,6 @@
 #include "test/mocks/server/instance.h"
 #include "test/mocks/tracing/mocks.h"
 #include "test/mocks/upstream/host.h"
-#include "test/mocks/upstream/mocks.h"
 #include "test/test_common/printers.h"
 #include "test/test_common/utility.h"
 
@@ -404,7 +403,7 @@ stat_prefix: name
   EXPECT_CALL(*rl_client, limit(_, "foo",
                                 testing::ContainerEq(
                                     std::vector<RateLimit::Descriptor>{{{{"hello", "world"}}}}),
-                                testing::A<Tracing::Span&>()))
+                                testing::A<Tracing::Span&>(), _))
       .WillOnce(WithArgs<0>(
           Invoke([&](Extensions::Filters::Common::RateLimit::RequestCallbacks& callbacks) -> void {
             request_callbacks = &callbacks;
@@ -416,7 +415,7 @@ stat_prefix: name
       .WillOnce(Return(&conn_pool));
 
   request_callbacks->complete(Extensions::Filters::Common::RateLimit::LimitStatus::OK, nullptr,
-                              nullptr);
+                              nullptr, nullptr);
 
   conn_pool.poolReady(upstream_connection);
 

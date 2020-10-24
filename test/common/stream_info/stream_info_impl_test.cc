@@ -10,9 +10,13 @@
 #include "common/stream_info/stream_info_impl.h"
 
 #include "test/common/stream_info/test_int_accessor.h"
+#include "test/test_common/utility.h"
+
+//#include "test/mocks/http/mocks.h"
 #include "test/mocks/router/mocks.h"
 #include "test/mocks/upstream/cluster_info.h"
-#include "test/mocks/upstream/mocks.h"
+#include "test/mocks/upstream/host.h"
+#include "test/test_common/test_time.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -149,6 +153,11 @@ TEST_F(StreamInfoImplTest, MiscSettersAndGetters) {
     ASSERT_TRUE(stream_info.responseCodeDetails().has_value());
     EXPECT_EQ(ResponseCodeDetails::get().ViaUpstream, stream_info.responseCodeDetails().value());
 
+    EXPECT_FALSE(stream_info.connectionTerminationDetails().has_value());
+    stream_info.setConnectionTerminationDetails("access_denied");
+    ASSERT_TRUE(stream_info.connectionTerminationDetails().has_value());
+    EXPECT_EQ("access_denied", stream_info.connectionTerminationDetails().value());
+
     EXPECT_EQ(nullptr, stream_info.upstreamHost());
     Upstream::HostDescriptionConstSharedPtr host(new NiceMock<Upstream::MockHostDescription>());
     stream_info.onUpstreamHostSelected(host);
@@ -253,6 +262,22 @@ TEST_F(StreamInfoImplTest, DefaultRequestIDExtensionTest) {
   EXPECT_EQ(out, 123);
   rid_extension->setTraceStatus(request_headers, Http::TraceStatus::Forced);
   EXPECT_EQ(rid_extension->getTraceStatus(request_headers), Http::TraceStatus::NoTrace);
+}
+
+TEST_F(StreamInfoImplTest, ConnectionID) {
+  StreamInfoImpl stream_info(test_time_.timeSystem());
+  EXPECT_FALSE(stream_info.connectionID().has_value());
+  uint64_t id = 123;
+  stream_info.setConnectionID(id);
+  EXPECT_EQ(id, stream_info.connectionID());
+}
+
+TEST_F(StreamInfoImplTest, Details) {
+  StreamInfoImpl stream_info(test_time_.timeSystem());
+  EXPECT_FALSE(stream_info.responseCodeDetails().has_value());
+  stream_info.setResponseCodeDetails("two words");
+  ASSERT_TRUE(stream_info.responseCodeDetails().has_value());
+  EXPECT_EQ(stream_info.responseCodeDetails().value(), "two_words");
 }
 
 } // namespace

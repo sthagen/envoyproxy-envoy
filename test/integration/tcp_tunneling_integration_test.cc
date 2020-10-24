@@ -31,6 +31,12 @@ public:
             hcm.mutable_stream_idle_timeout()->set_seconds(0);
             hcm.mutable_stream_idle_timeout()->set_nanos(200 * 1000 * 1000);
           }
+          if (exact_match_) {
+            auto* route_config = hcm.mutable_route_config();
+            ASSERT_EQ(1, route_config->virtual_hosts_size());
+            route_config->mutable_virtual_hosts(0)->clear_domains();
+            route_config->mutable_virtual_hosts(0)->add_domains("host:80");
+          }
         });
     HttpIntegrationTest::initialize();
   }
@@ -67,10 +73,32 @@ public:
   FakeRawConnectionPtr fake_raw_upstream_connection_;
   IntegrationStreamDecoderPtr response_;
   bool enable_timeout_{};
+  bool exact_match_{};
 };
 
 TEST_P(ConnectTerminationIntegrationTest, Basic) {
   initialize();
+
+  setUpConnection();
+  sendBidirectionalData("hello", "hello", "there!", "there!");
+  // Send a second set of data to make sure for example headers are only sent once.
+  sendBidirectionalData(",bye", "hello,bye", "ack", "there!ack");
+
+  // Send an end stream. This should result in half close upstream.
+  codec_client_->sendData(*request_encoder_, "", true);
+  ASSERT_TRUE(fake_raw_upstream_connection_->waitForHalfClose());
+
+  // Now send a FIN from upstream. This should result in clean shutdown downstream.
+  ASSERT_TRUE(fake_raw_upstream_connection_->close());
+  response_->waitForEndStream();
+  ASSERT_FALSE(response_->reset());
+}
+
+TEST_P(ConnectTerminationIntegrationTest, UsingHostMatch) {
+  exact_match_ = true;
+  initialize();
+
+  connect_headers_.removePath();
 
   setUpConnection();
   sendBidirectionalData("hello", "hello", "there!", "there!");
@@ -133,9 +161,6 @@ TEST_P(ConnectTerminationIntegrationTest, TestTimeout) {
 
 TEST_P(ConnectTerminationIntegrationTest, BuggyHeaders) {
   initialize();
-  // It's possible that the FIN is received before we set half close on the
-  // upstream connection, so allow unexpected disconnects.
-  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
 
   // Sending a header-only request is probably buggy, but rather than having a
   // special corner case it is treated as a regular half close.
@@ -170,7 +195,6 @@ TEST_P(ConnectTerminationIntegrationTest, BasicMaxStreamDuration) {
   });
 
   initialize();
-  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
   setUpConnection();
   sendBidirectionalData();
 
@@ -222,11 +246,11 @@ TEST_P(ProxyingConnectIntegrationTest, ProxyConnect) {
   result = fake_upstream_connection_->waitForNewStream(*dispatcher_, upstream_request_);
   RELEASE_ASSERT(result, result.message());
   ASSERT_TRUE(upstream_request_->waitForHeadersComplete());
-  EXPECT_EQ(upstream_request_->headers().get(Http::Headers::get().Method)->value(), "CONNECT");
+  EXPECT_EQ(upstream_request_->headers().get(Http::Headers::get().Method)[0]->value(), "CONNECT");
   if (upstreamProtocol() == FakeHttpConnection::Type::HTTP1) {
-    EXPECT_TRUE(upstream_request_->headers().get(Http::Headers::get().Protocol) == nullptr);
+    EXPECT_TRUE(upstream_request_->headers().get(Http::Headers::get().Protocol).empty());
   } else {
-    EXPECT_EQ(upstream_request_->headers().get(Http::Headers::get().Protocol)->value(),
+    EXPECT_EQ(upstream_request_->headers().get(Http::Headers::get().Protocol)[0]->value(),
               "bytestream");
   }
 
@@ -396,7 +420,7 @@ TEST_P(TcpTunnelingIntegrationTest, ResetStreamTest) {
 
   // Reset the stream.
   upstream_request_->encodeResetStream();
-  tcp_client->waitForDisconnect(true);
+  tcp_client->waitForDisconnect();
 }
 
 TEST_P(TcpTunnelingIntegrationTest, TestIdletimeoutWithLargeOutstandingData) {
@@ -429,7 +453,7 @@ TEST_P(TcpTunnelingIntegrationTest, TestIdletimeoutWithLargeOutstandingData) {
   ASSERT_TRUE(tcp_client->write(data));
   upstream_request_->encodeData(data, false);
 
-  tcp_client->waitForDisconnect(true);
+  tcp_client->waitForDisconnect();
   ASSERT_TRUE(upstream_request_->waitForReset());
 }
 
@@ -476,11 +500,11 @@ TEST_P(TcpTunnelingIntegrationTest, TcpProxyUpstreamFlush) {
   ASSERT_TRUE(upstream_request_->waitForHeadersComplete());
   upstream_request_->encodeHeaders(default_response_headers_, false);
   upstream_request_->readDisable(true);
-  upstream_request_->encodeData("", true);
+  upstream_request_->encodeData("hello", false);
 
   // This ensures that fake_upstream_connection->readDisable has been run on its thread
   // before tcp_client starts writing.
-  tcp_client->waitForHalfClose();
+  ASSERT_TRUE(tcp_client->waitForData(5));
 
   ASSERT_TRUE(tcp_client->write(data, true));
 
@@ -490,6 +514,7 @@ TEST_P(TcpTunnelingIntegrationTest, TcpProxyUpstreamFlush) {
   upstream_request_->readDisable(false);
   ASSERT_TRUE(upstream_request_->waitForData(*dispatcher_, size));
   ASSERT_TRUE(upstream_request_->waitForEndStream(*dispatcher_));
+  upstream_request_->encodeData("world", true);
   tcp_client->waitForHalfClose();
 }
 

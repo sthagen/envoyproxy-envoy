@@ -115,6 +115,38 @@ TEST_P(AdsIntegrationTest, Failure) {
   makeSingleRequest();
 }
 
+// Validate that xds can support a mix of v2 and v3 type url.
+TEST_P(AdsIntegrationTest, MixV2V3TypeUrlInDiscoveryResponse) {
+  config_helper_.addRuntimeOverride(
+      "envoy.reloadable_features.enable_type_url_downgrade_and_upgrade", "true");
+  initialize();
+
+  // Send initial configuration.
+  // Discovery response with v3 type url.
+  sendDiscoveryResponse<envoy::config::cluster::v3::Cluster>(
+      Config::getTypeUrl<envoy::config::cluster::v3::Cluster>(
+          envoy::config::core::v3::ApiVersion::V3),
+      {buildCluster("cluster_0")}, {buildCluster("cluster_0")}, {}, "1", false);
+  // Discovery response with v2 type url.
+  sendDiscoveryResponse<envoy::config::endpoint::v3::ClusterLoadAssignment>(
+      Config::TypeUrl::get().ClusterLoadAssignment, {buildClusterLoadAssignment("cluster_0")},
+      {buildClusterLoadAssignment("cluster_0")}, {}, "1");
+  // Discovery response with v3 type url.
+  sendDiscoveryResponse<envoy::config::listener::v3::Listener>(
+      Config::getTypeUrl<envoy::config::listener::v3::Listener>(
+          envoy::config::core::v3::ApiVersion::V3),
+      {buildListener("listener_0", "route_config_0")},
+      {buildListener("listener_0", "route_config_0")}, {}, "1", false);
+  // Discovery response with v2 type url.
+  sendDiscoveryResponse<envoy::config::route::v3::RouteConfiguration>(
+      Config::TypeUrl::get().RouteConfiguration, {buildRouteConfig("route_config_0", "cluster_0")},
+      {buildRouteConfig("route_config_0", "cluster_0")}, {}, "1");
+  test_server_->waitForCounterGe("listener_manager.listener_create_success", 1);
+
+  // Validate that we can process a request.
+  makeSingleRequest();
+}
+
 // Validate that the request with duplicate listeners is rejected.
 TEST_P(AdsIntegrationTest, DuplicateWarmingListeners) {
   initialize();
@@ -418,6 +450,68 @@ TEST_P(AdsIntegrationTest, CdsPausedDuringWarming) {
   EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().Cluster, "3", {}, {}, {}));
   EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().ClusterLoadAssignment, "2",
                                       {"warming_cluster_2", "warming_cluster_1"}, {}, {}));
+}
+
+// Validate that warming listeners are removed when left out of SOTW update.
+TEST_P(AdsIntegrationTest, RemoveWarmingListener) {
+  initialize();
+
+  // Send initial configuration to start workers, validate we can process a request.
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().Cluster, "", {}, {}, {}, true));
+  sendDiscoveryResponse<envoy::config::cluster::v3::Cluster>(Config::TypeUrl::get().Cluster,
+                                                             {buildCluster("cluster_0")},
+                                                             {buildCluster("cluster_0")}, {}, "1");
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().ClusterLoadAssignment, "",
+                                      {"cluster_0"}, {"cluster_0"}, {}));
+
+  sendDiscoveryResponse<envoy::config::endpoint::v3::ClusterLoadAssignment>(
+      Config::TypeUrl::get().ClusterLoadAssignment, {buildClusterLoadAssignment("cluster_0")},
+      {buildClusterLoadAssignment("cluster_0")}, {}, "1");
+
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().Cluster, "1", {}, {}, {}));
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().Listener, "", {}, {}, {}));
+  sendDiscoveryResponse<envoy::config::listener::v3::Listener>(
+      Config::TypeUrl::get().Listener, {buildListener("listener_0", "route_config_0")},
+      {buildListener("listener_0", "route_config_0")}, {}, "1");
+
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().ClusterLoadAssignment, "1",
+                                      {"cluster_0"}, {}, {}));
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().RouteConfiguration, "",
+                                      {"route_config_0"}, {"route_config_0"}, {}));
+  sendDiscoveryResponse<envoy::config::route::v3::RouteConfiguration>(
+      Config::TypeUrl::get().RouteConfiguration, {buildRouteConfig("route_config_0", "cluster_0")},
+      {buildRouteConfig("route_config_0", "cluster_0")}, {}, "1");
+
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().Listener, "1", {}, {}, {}));
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().RouteConfiguration, "1",
+                                      {"route_config_0"}, {}, {}));
+
+  test_server_->waitForCounterGe("listener_manager.listener_create_success", 1);
+  makeSingleRequest();
+
+  // Send a listener without its route, so it will be added as warming.
+  sendDiscoveryResponse<envoy::config::listener::v3::Listener>(
+      Config::TypeUrl::get().Listener,
+      {buildListener("listener_0", "route_config_0"),
+       buildListener("warming_listener_1", "nonexistent_route")},
+      {buildListener("warming_listener_1", "nonexistent_route")}, {}, "2");
+  test_server_->waitForGaugeEq("listener_manager.total_listeners_warming", 1);
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().RouteConfiguration, "1",
+                                      {"nonexistent_route", "route_config_0"},
+                                      {"nonexistent_route"}, {}));
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().Listener, "2", {}, {}, {}));
+
+  // Send a request removing the warming listener.
+  sendDiscoveryResponse<envoy::config::listener::v3::Listener>(
+      Config::TypeUrl::get().Listener, {buildListener("listener_0", "route_config_0")},
+      {buildListener("listener_0", "route_config_0")}, {"warming_listener_1"}, "3");
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().RouteConfiguration, "1",
+                                      {"route_config_0"}, {}, {"nonexistent_route"}));
+  EXPECT_TRUE(compareDiscoveryRequest(Config::TypeUrl::get().Listener, "3", {}, {}, {}));
+
+  // The warming listener should be successfully removed.
+  test_server_->waitForCounterEq("listener_manager.listener_removed", 1);
+  test_server_->waitForGaugeEq("listener_manager.total_listeners_warming", 0);
 }
 
 // Verify cluster warming is finished only on named EDS response.
@@ -1037,6 +1131,26 @@ public:
 
 INSTANTIATE_TEST_SUITE_P(IpVersionsClientTypeDelta, AdsClusterV3Test,
                          DELTA_SOTW_GRPC_CLIENT_INTEGRATION_PARAMS);
+
+TEST_P(AdsClusterV3Test, BasicClusterInitialWarming) {
+  initialize();
+  const auto cds_type_url = Config::getTypeUrl<envoy::config::cluster::v3::Cluster>(
+      envoy::config::core::v3::ApiVersion::V3);
+  const auto eds_type_url = Config::getTypeUrl<envoy::config::endpoint::v3::ClusterLoadAssignment>(
+      envoy::config::core::v3::ApiVersion::V3);
+
+  EXPECT_TRUE(compareDiscoveryRequest(cds_type_url, "", {}, {}, {}, true));
+  sendDiscoveryResponse<envoy::config::cluster::v3::Cluster>(
+      cds_type_url, {buildCluster("cluster_0")}, {buildCluster("cluster_0")}, {}, "1", false);
+  test_server_->waitForGaugeEq("cluster_manager.warming_clusters", 1);
+  EXPECT_TRUE(compareDiscoveryRequest(eds_type_url, "", {"cluster_0"}, {"cluster_0"}, {}));
+  sendDiscoveryResponse<envoy::config::endpoint::v3::ClusterLoadAssignment>(
+      eds_type_url, {buildClusterLoadAssignment("cluster_0")},
+      {buildClusterLoadAssignment("cluster_0")}, {}, "1", false);
+
+  test_server_->waitForGaugeEq("cluster_manager.warming_clusters", 0);
+  test_server_->waitForGaugeGe("cluster_manager.active_clusters", 2);
+}
 
 // Verify CDS is paused during cluster warming.
 TEST_P(AdsClusterV3Test, CdsPausedDuringWarming) {

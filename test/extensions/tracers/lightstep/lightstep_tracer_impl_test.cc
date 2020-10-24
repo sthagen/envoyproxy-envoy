@@ -11,7 +11,7 @@
 #include "common/http/headers.h"
 #include "common/http/message_impl.h"
 #include "common/runtime/runtime_impl.h"
-#include "common/stats/fake_symbol_table_impl.h"
+#include "common/stats/symbol_table_impl.h"
 #include "common/tracing/http_tracer_impl.h"
 
 #include "extensions/tracers/lightstep/lightstep_tracer_impl.h"
@@ -22,7 +22,8 @@
 #include "test/mocks/stats/mocks.h"
 #include "test/mocks/thread_local/mocks.h"
 #include "test/mocks/tracing/mocks.h"
-#include "test/mocks/upstream/mocks.h"
+#include "test/mocks/upstream/cluster_manager.h"
+#include "test/mocks/upstream/thread_local_cluster.h"
 #include "test/test_common/global.h"
 #include "test/test_common/printers.h"
 #include "test/test_common/utility.h"
@@ -54,7 +55,7 @@ static Http::ResponseMessagePtr makeSuccessResponse() {
   std::unique_ptr<Protobuf::Message> collector_response =
       lightstep::Transporter::MakeCollectorResponse();
   EXPECT_NE(collector_response, nullptr);
-  msg->body() = Grpc::Common::serializeToGrpcFrame(*collector_response);
+  msg->body().add(*Grpc::Common::serializeToGrpcFrame(*collector_response));
   return msg;
 }
 
@@ -716,6 +717,17 @@ TEST_F(LightStepDriverTest, SpawnChild) {
 
   EXPECT_FALSE(base1_context.empty());
   EXPECT_FALSE(base2_context.empty());
+}
+
+TEST_F(LightStepDriverTest, GetAndSetBaggage) {
+  setupValidDriver();
+  Tracing::SpanPtr span = driver_->startSpan(config_, request_headers_, operation_name_,
+                                             start_time_, {Tracing::Reason::Sampling, true});
+
+  std::string key = "key1";
+  std::string value = "value1";
+  span->setBaggage(key, value);
+  EXPECT_EQ(span->getBaggage(key), value);
 }
 
 } // namespace

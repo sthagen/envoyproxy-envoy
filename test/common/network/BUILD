@@ -74,8 +74,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "connection_impl_test",
     srcs = ["connection_impl_test.cc"],
-    # Times out on Windows
-    tags = ["fails_on_windows"],
     deps = [
         "//source/common/buffer:buffer_lib",
         "//source/common/common:empty_string",
@@ -85,6 +83,7 @@ envoy_cc_test(
         "//source/common/network:listen_socket_lib",
         "//source/common/network:utility_lib",
         "//source/common/stats:stats_lib",
+        "//test/mocks/api:api_mocks",
         "//test/mocks/buffer:buffer_mocks",
         "//test/mocks/event:event_mocks",
         "//test/mocks/network:network_mocks",
@@ -93,14 +92,51 @@ envoy_cc_test(
         "//test/test_common:network_utility_lib",
         "//test/test_common:simulated_time_system_lib",
         "//test/test_common:test_time_lib",
+        "//test/test_common:threadsafe_singleton_injector_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
 )
 
 envoy_cc_test(
+    name = "apple_dns_impl_test",
+    srcs = select({
+        "//bazel:apple": ["apple_dns_impl_test.cc"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//include/envoy/event:dispatcher_interface",
+        "//include/envoy/network:address_interface",
+        "//include/envoy/network:dns_interface",
+        "//source/common/buffer:buffer_lib",
+        "//source/common/event:dispatcher_includes",
+        "//source/common/event:dispatcher_lib",
+        "//source/common/network:address_lib",
+        "//source/common/network:filter_lib",
+        "//source/common/network:listen_socket_lib",
+        "//source/common/stats:stats_lib",
+        "//source/common/stream_info:stream_info_lib",
+        "//test/mocks/network:network_mocks",
+        "//test/test_common:environment_lib",
+        "//test/test_common:network_utility_lib",
+        "//test/test_common:utility_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+        "//test/mocks/local_info:local_info_mocks",
+        "//test/mocks/protobuf:protobuf_mocks",
+        "//test/mocks/runtime:runtime_mocks",
+        "//test/mocks/thread_local:thread_local_mocks",
+    ] + select({
+        "//bazel:apple": ["//source/common/network:dns_lib"],
+        "//conditions:default": [],
+    }),
+)
+
+envoy_cc_test(
     name = "dns_impl_test",
     srcs = ["dns_impl_test.cc"],
-    tags = ["fails_on_windows"],
+    args = [
+        # Used in createDnsResolver to force creation of DnsResolverImpl when running test on macOS.
+        "--runtime-feature-disable-for-tests=envoy.restart_features.use_apple_api_for_dns_lookups",
+    ],
     deps = [
         "//include/envoy/event:dispatcher_interface",
         "//include/envoy/network:address_interface",
@@ -143,7 +179,6 @@ envoy_cc_test(
         "//test/mocks/server:instance_mocks",
         "//test/mocks/tracing:tracing_mocks",
         "//test/mocks/upstream:host_mocks",
-        "//test/mocks/upstream:upstream_mocks",
         "//test/test_common:test_runtime_lib",
         "//test/test_common:utility_lib",
         "@envoy_api//envoy/extensions/filters/network/ratelimit/v3:pkg_cc_proto",
@@ -170,6 +205,7 @@ envoy_cc_test(
         "//source/common/network:address_lib",
         "//source/common/network:listen_socket_lib",
         "//source/common/network:utility_lib",
+        "//test/mocks/network:io_handle_mocks",
         "//test/mocks/network:network_mocks",
         "//test/test_common:environment_lib",
         "//test/test_common:network_utility_lib",
@@ -181,8 +217,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "listener_impl_test",
     srcs = ["listener_impl_test.cc"],
-    # Times out on Windows
-    tags = ["fails_on_windows"],
     deps = [
         "//source/common/event:dispatcher_lib",
         "//source/common/network:address_lib",
@@ -200,23 +234,73 @@ envoy_cc_test(
     ],
 )
 
-envoy_cc_test(
-    name = "udp_listener_impl_test",
-    srcs = ["udp_listener_impl_test.cc"],
-    tags = ["fails_on_windows"],
+envoy_cc_test_library(
+    name = "udp_listener_impl_test_base_lib",
+    hdrs = ["udp_listener_impl_test_base.h"],
     deps = [
         "//source/common/event:dispatcher_lib",
         "//source/common/network:address_lib",
         "//source/common/network:listener_lib",
-        "//source/common/network:socket_option_lib",
         "//source/common/network:utility_lib",
         "//source/common/stats:stats_lib",
+        "//test/mocks/network:network_mocks",
+        "//test/mocks/server:server_mocks",
+        "//test/test_common:environment_lib",
+        "//test/test_common:network_utility_lib",
+        "//test/test_common:simulated_time_system_lib",
+        "//test/test_common:test_runtime_lib",
+        "//test/test_common:utility_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_test(
+    name = "udp_listener_impl_test",
+    srcs = ["udp_listener_impl_test.cc"],
+    deps = [
+        ":udp_listener_impl_test_base_lib",
+        "//source/common/event:dispatcher_lib",
+        "//source/common/network:address_lib",
+        "//source/common/network:listener_lib",
+        "//source/common/network:socket_option_lib",
+        "//source/common/network:udp_packet_writer_handler_lib",
+        "//source/common/network:utility_lib",
+        "//source/common/stats:stats_lib",
+        "//test/common/network:listener_impl_test_base_lib",
+        "//test/mocks/network:network_mocks",
+        "//test/mocks/server:server_mocks",
+        "//test/test_common:environment_lib",
+        "//test/test_common:network_utility_lib",
+        "//test/test_common:threadsafe_singleton_injector_lib",
+        "//test/test_common:utility_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_test(
+    name = "udp_listener_impl_batch_writer_test",
+    srcs = ["udp_listener_impl_batch_writer_test.cc"],
+    tags = [
+        # Skipping as quiche quic_gso_batch_writer.h does not exist on Windows
+        "skip_on_windows",
+    ],
+    deps = [
+        ":udp_listener_impl_test_base_lib",
+        "//source/common/event:dispatcher_lib",
+        "//source/common/network:address_lib",
+        "//source/common/network:listener_lib",
+        "//source/common/network:socket_option_lib",
+        "//source/common/network:udp_packet_writer_handler_lib",
+        "//source/common/network:utility_lib",
+        "//source/common/stats:stats_lib",
+        "//source/extensions/quic_listeners/quiche:udp_gso_batch_writer_lib",
         "//test/common/network:listener_impl_test_base_lib",
         "//test/mocks/network:network_mocks",
         "//test/test_common:environment_lib",
         "//test/test_common:network_utility_lib",
         "//test/test_common:threadsafe_singleton_injector_lib",
         "//test/test_common:utility_lib",
+        "@com_googlesource_quiche//:quic_test_tools_mock_syscall_wrapper_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
 )
@@ -279,7 +363,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "addr_family_aware_socket_option_impl_test",
     srcs = ["addr_family_aware_socket_option_impl_test.cc"],
-    tags = ["fails_on_windows"],
     deps = [
         ":socket_option_test",
         "//source/common/network:addr_family_aware_socket_option_lib",
@@ -331,6 +414,18 @@ envoy_benchmark_test(
 envoy_cc_test(
     name = "io_socket_handle_impl_test",
     srcs = ["io_socket_handle_impl_test.cc"],
+    deps = [
+        "//source/common/common:utility_lib",
+        "//source/common/network:address_lib",
+        "//test/mocks/api:api_mocks",
+        "//test/test_common:threadsafe_singleton_injector_lib",
+    ],
+)
+
+envoy_cc_test(
+    name = "io_socket_handle_impl_integration_test",
+    srcs = ["io_socket_handle_impl_integration_test.cc"],
+    tags = ["requires-network"],
     deps = [
         "//source/common/common:utility_lib",
         "//source/common/network:address_lib",

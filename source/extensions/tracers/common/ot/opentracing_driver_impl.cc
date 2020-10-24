@@ -48,10 +48,11 @@ public:
   // opentracing::HTTPHeadersReader
   opentracing::expected<opentracing::string_view>
   LookupKey(opentracing::string_view key) const override {
-    const Http::HeaderEntry* entry = request_headers_.get(Http::LowerCaseString{key});
-    if (entry != nullptr) {
-      return opentracing::string_view{entry->value().getStringView().data(),
-                                      entry->value().getStringView().length()};
+    const auto entry = request_headers_.get(Http::LowerCaseString{key});
+    if (!entry.empty()) {
+      // This is an implicitly untrusted header, so only the first value is used.
+      return opentracing::string_view{entry[0]->value().getStringView().data(),
+                                      entry[0]->value().getStringView().length()};
     } else {
       return opentracing::make_unexpected(opentracing::key_not_found_error);
     }
@@ -100,6 +101,14 @@ void OpenTracingSpan::setTag(absl::string_view name, absl::string_view value) {
 void OpenTracingSpan::log(SystemTime timestamp, const std::string& event) {
   opentracing::LogRecord record{timestamp, {{Tracing::Logs::get().EventKey, event}}};
   finish_options_.log_records.emplace_back(std::move(record));
+}
+
+void OpenTracingSpan::setBaggage(absl::string_view key, absl::string_view value) {
+  span_->SetBaggageItem({key.data(), key.length()}, {value.data(), value.length()});
+}
+
+std::string OpenTracingSpan::getBaggage(absl::string_view key) {
+  return span_->BaggageItem({key.data(), key.length()});
 }
 
 void OpenTracingSpan::injectContext(Http::RequestHeaderMap& request_headers) {

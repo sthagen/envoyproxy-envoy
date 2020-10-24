@@ -13,6 +13,8 @@
 #include "test/mocks/server/admin.h"
 #include "test/mocks/server/instance.h"
 #include "test/mocks/ssl/mocks.h"
+#include "test/mocks/upstream/load_balancer.h"
+#include "test/mocks/upstream/load_balancer_context.h"
 #include "test/test_common/environment.h"
 
 using testing::AtLeast;
@@ -38,7 +40,7 @@ public:
                                            ProtobufMessage::getStrictValidationVisitor(), config);
     Stats::ScopePtr scope = stats_store_.createScope("cluster.name.");
     Server::Configuration::TransportSocketFactoryContextImpl factory_context(
-        admin_, ssl_context_manager_, *scope, cm_, local_info_, dispatcher_, random_, stats_store_,
+        admin_, ssl_context_manager_, *scope, cm_, local_info_, dispatcher_, stats_store_,
         singleton_manager_, tls_, validation_visitor_, *api_);
     if (uses_tls) {
       EXPECT_CALL(ssl_context_manager_, createSslClientContext(_, _));
@@ -108,7 +110,6 @@ public:
   Stats::IsolatedStoreImpl stats_store_;
   Ssl::MockContextManager ssl_context_manager_;
   NiceMock<Upstream::MockClusterManager> cm_;
-  NiceMock<Random::MockRandomGenerator> random_;
   NiceMock<ThreadLocal::MockInstance> tls_;
   NiceMock<Runtime::MockLoader> runtime_;
   NiceMock<Event::MockDispatcher> dispatcher_;
@@ -204,9 +205,8 @@ protected:
     envoy::config::cluster::v3::Cluster cluster_config =
         Upstream::parseClusterFromV3Yaml(yaml_config, avoid_boosting);
     Upstream::ClusterFactoryContextImpl cluster_factory_context(
-        cm_, stats_store_, tls_, nullptr, ssl_context_manager_, runtime_, random_, dispatcher_,
-        log_manager_, local_info_, admin_, singleton_manager_, nullptr, true, validation_visitor_,
-        *api_);
+        cm_, stats_store_, tls_, nullptr, ssl_context_manager_, runtime_, dispatcher_, log_manager_,
+        local_info_, admin_, singleton_manager_, nullptr, true, validation_visitor_, *api_);
     std::unique_ptr<Upstream::ClusterFactory> cluster_factory = std::make_unique<ClusterFactory>();
 
     std::tie(cluster_, thread_aware_lb_) =
@@ -217,7 +217,6 @@ private:
   Stats::IsolatedStoreImpl stats_store_;
   NiceMock<Ssl::MockContextManager> ssl_context_manager_;
   NiceMock<Upstream::MockClusterManager> cm_;
-  NiceMock<Random::MockRandomGenerator> random_;
   NiceMock<ThreadLocal::MockInstance> tls_;
   NiceMock<Runtime::MockLoader> runtime_;
   NiceMock<Event::MockDispatcher> dispatcher_;

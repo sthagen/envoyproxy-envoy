@@ -22,6 +22,7 @@ CODEC_LIB_DEPS = [
     ":codec_stats_lib",
     ":metadata_decoder_lib",
     ":metadata_encoder_lib",
+    ":protocol_constraints_lib",
     "//include/envoy/event:deferred_deletable",
     "//include/envoy/event:dispatcher_interface",
     "//include/envoy/http:codec_interface",
@@ -35,6 +36,7 @@ CODEC_LIB_DEPS = [
     "//source/common/common:enum_to_int",
     "//source/common/common:linked_object",
     "//source/common/common:minimal_logger_lib",
+    "//source/common/common:statusor_lib",
     "//source/common/common:utility_lib",
     "//source/common/http:codec_helper_lib",
     "//source/common/http:codes_lib",
@@ -58,9 +60,7 @@ envoy_cc_library(
         "abseil_inlined_vector",
         "abseil_algorithm",
     ],
-    deps = CODEC_LIB_DEPS + [
-        "//source/common/common:statusor_lib",
-    ],
+    deps = CODEC_LIB_DEPS,
 )
 
 envoy_cc_library(
@@ -130,5 +130,19 @@ envoy_cc_library(
         "//source/common/buffer:buffer_lib",
         "//source/common/common:assert_lib",
         "//source/common/common:minimal_logger_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "protocol_constraints_lib",
+    srcs = ["protocol_constraints.cc"],
+    hdrs = ["protocol_constraints.h"],
+    deps = [
+        ":codec_stats_lib",
+        "//bazel/foreign_cc:nghttp2",
+        "//include/envoy/network:connection_interface",
+        "//source/common/common:assert_lib",
+        "//source/common/http:status_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
 )

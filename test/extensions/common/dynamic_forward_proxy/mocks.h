@@ -4,7 +4,7 @@
 
 #include "extensions/common/dynamic_forward_proxy/dns_cache_impl.h"
 
-#include "test/mocks/upstream/mocks.h"
+#include "test/mocks/upstream/basic_resource_limit.h"
 
 #include "gmock/gmock.h"
 
@@ -57,6 +57,7 @@ public:
               (UpdateCallbacks & callbacks));
 
   MOCK_METHOD((absl::flat_hash_map<std::string, DnsHostInfoSharedPtr>), hosts, ());
+  MOCK_METHOD((absl::optional<const DnsHostInfoSharedPtr>), getHost, (absl::string_view));
   MOCK_METHOD(Upstream::ResourceAutoIncDec*, canCreateDnsRequest_, (ResourceLimitOptRef));
 };
 

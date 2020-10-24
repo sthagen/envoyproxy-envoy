@@ -577,6 +577,8 @@ public:
   COUNTER(upstream_rq_pending_total)                                                               \
   COUNTER(upstream_rq_per_try_timeout)                                                             \
   COUNTER(upstream_rq_retry)                                                                       \
+  COUNTER(upstream_rq_retry_backoff_exponential)                                                   \
+  COUNTER(upstream_rq_retry_backoff_ratelimited)                                                   \
   COUNTER(upstream_rq_retry_limit_exceeded)                                                        \
   COUNTER(upstream_rq_retry_overflow)                                                              \
   COUNTER(upstream_rq_retry_success)                                                               \
@@ -733,7 +735,12 @@ public:
   /**
    * @return how many streams should be anticipated per each current stream.
    */
-  virtual float prefetchRatio() const PURE;
+  virtual float perUpstreamPrefetchRatio() const PURE;
+
+  /**
+   * @return how many streams should be anticipated per each current stream.
+   */
+  virtual float peekaheadRatio() const PURE;
 
   /**
    * @return soft limit on size of the cluster's connections read and write buffers.
@@ -809,6 +816,12 @@ public:
    */
   virtual const absl::optional<envoy::config::cluster::v3::Cluster::RingHashLbConfig>&
   lbRingHashConfig() const PURE;
+
+  /**
+   * @return configuration for maglev load balancing, only used if type is set to maglev_lb.
+   */
+  virtual const absl::optional<envoy::config::cluster::v3::Cluster::MaglevLbConfig>&
+  lbMaglevConfig() const PURE;
 
   /**
    * @return const absl::optional<envoy::config::cluster::v3::Cluster::OriginalDstLbConfig>& the
@@ -925,6 +938,12 @@ public:
    *         after a host is removed from service discovery.
    */
   virtual bool drainConnectionsOnHostRemoval() const PURE;
+
+  /**
+   *  @return whether to create a new connection pool for each downstream connection routed to
+   *          the cluster
+   */
+  virtual bool connectionPoolPerDownstreamConnection() const PURE;
 
   /**
    * @return true if this cluster is configured to ignore hosts for the purpose of load balancing

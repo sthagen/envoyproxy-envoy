@@ -44,7 +44,6 @@ CODEC_LIB_DEPS = [
     "//source/common/http:header_utility_lib",
     "//source/common/http:headers_lib",
     "//source/common/http:status_lib",
-    "//source/common/http:url_utility_lib",
     "//source/common/http:utility_lib",
     "//source/common/runtime:runtime_features_lib",
     "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
@@ -55,7 +54,7 @@ envoy_cc_library(
     srcs = ["codec_impl.cc"],
     hdrs = ["codec_impl.h"],
     external_deps = ["http_parser"],
-    deps = CODEC_LIB_DEPS,
+    deps = CODEC_LIB_DEPS + ["//source/common/common:cleanup_lib"],
 )
 
 envoy_cc_library(

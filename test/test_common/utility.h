@@ -25,7 +25,7 @@
 #include "common/http/header_map_impl.h"
 #include "common/protobuf/message_validator_impl.h"
 #include "common/protobuf/utility.h"
-#include "common/stats/fake_symbol_table_impl.h"
+#include "common/stats/symbol_table_impl.h"
 
 #include "test/test_common/file_system_for_test.h"
 #include "test/test_common/printers.h"
@@ -201,13 +201,15 @@ public:
    * @param value supplies the value of the counter.
    * @param time_system the time system to use for waiting.
    * @param timeout the maximum time to wait before timing out, or 0 for no timeout.
+   * @param dispatcher the dispatcher to run non-blocking periodically during the wait.
    * @return AssertionSuccess() if the counter was == to the value within the timeout, else
    * AssertionFailure().
    */
   static AssertionResult
   waitForCounterEq(Stats::Store& store, const std::string& name, uint64_t value,
                    Event::TestTimeSystem& time_system,
-                   std::chrono::milliseconds timeout = std::chrono::milliseconds::zero());
+                   std::chrono::milliseconds timeout = std::chrono::milliseconds::zero(),
+                   Event::Dispatcher* dispatcher = nullptr);
 
   /**
    * Wait for a counter to >= a given value.
@@ -650,6 +652,19 @@ public:
   }
 
   template <class MessageType>
+  static Config::DecodedResourcesWrapper decodeResources(std::vector<MessageType> resources,
+                                                         const std::string& name_field = "name") {
+    Config::DecodedResourcesWrapper decoded_resources;
+    for (const auto& resource : resources) {
+      auto owned_resource = std::make_unique<MessageType>(resource);
+      decoded_resources.owned_resources_.emplace_back(new Config::DecodedResourceImpl(
+          std::move(owned_resource), MessageUtil::getStringField(resource, name_field), {}, ""));
+      decoded_resources.refvec_.emplace_back(*decoded_resources.owned_resources_.back());
+    }
+    return decoded_resources;
+  }
+
+  template <class MessageType>
   static Config::DecodedResourcesWrapper
   decodeResources(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources,
                   const std::string& version, const std::string& name_field = "name") {
@@ -792,9 +807,8 @@ public:
   void wait();
 
 private:
-  Thread::CondVar cv_;
-  Thread::MutexBasicLockable mutex_;
-  bool ready_{false};
+  absl::Mutex mutex_;
+  bool ready_ ABSL_GUARDED_BY(mutex_){false};
 };
 
 namespace Http {
@@ -866,15 +880,16 @@ public:
   }
   std::string get_(const std::string& key) const { return get_(LowerCaseString(key)); }
   std::string get_(const LowerCaseString& key) const {
-    const HeaderEntry* header = get(key);
-    if (!header) {
+    // TODO(mattklein123): Possibly allow getting additional headers beyond the first.
+    auto headers = get(key);
+    if (headers.empty()) {
       return EMPTY_STRING;
     } else {
-      return std::string(header->value().getStringView());
+      return std::string(headers[0]->value().getStringView());
     }
   }
-  bool has(const std::string& key) const { return get(LowerCaseString(key)) != nullptr; }
-  bool has(const LowerCaseString& key) const { return get(key) != nullptr; }
+  bool has(const std::string& key) const { return !get(LowerCaseString(key)).empty(); }
+  bool has(const LowerCaseString& key) const { return !get(key).empty(); }
   size_t remove(const std::string& key) { return remove(LowerCaseString(key)); }
 
   // HeaderMap
@@ -920,7 +935,7 @@ public:
     header_map_->verifyByteSizeInternalForTest();
   }
   uint64_t byteSize() const override { return header_map_->byteSize(); }
-  const HeaderEntry* get(const LowerCaseString& key) const override {
+  HeaderMap::GetResult get(const LowerCaseString& key) const override {
     return header_map_->get(key);
   }
   void iterate(HeaderMap::ConstIterateCb cb) const override { header_map_->iterate(cb); }
@@ -1026,7 +1041,9 @@ makeHeaderMap(const std::initializer_list<std::pair<std::string, std::string>>& 
 
 namespace Api {
 ApiPtr createApiForTest();
+ApiPtr createApiForTest(Random::RandomGenerator& random);
 ApiPtr createApiForTest(Stats::Store& stat_store);
+ApiPtr createApiForTest(Stats::Store& stat_store, Random::RandomGenerator& random);
 ApiPtr createApiForTest(Event::TimeSystem& time_system);
 ApiPtr createApiForTest(Stats::Store& stat_store, Event::TimeSystem& time_system);
 } // namespace Api

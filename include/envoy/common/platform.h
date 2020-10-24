@@ -8,6 +8,7 @@
 // The goal is to eventually not require this file of envoy header declarations,
 // but limit the use of these architecture-specific types and declarations
 // to the corresponding .cc implementation files.
+#include "absl/strings/string_view.h"
 
 #ifdef _MSC_VER
 
@@ -17,6 +18,7 @@
 // These must follow afterwards
 #include <mswsock.h>
 #include <ws2tcpip.h>
+#include <mstcpip.h>
 
 // This is introduced in Windows SDK 10.0.17063.0 which is required
 // to build Envoy on Windows (we will reevaluate whether earlier builds
@@ -25,11 +27,13 @@
 
 // <windows.h> defines some frequently used symbols, so we need to undef these
 // interfering symbols.
+#undef ASSERT
 #undef DELETE
 #undef ERROR
 #undef GetMessage
 #undef interface
 #undef TRUE
+#undef IGNORE
 
 #include <io.h>
 #include <stdint.h>
@@ -60,6 +64,7 @@ typedef ptrdiff_t ssize_t;
 typedef uint32_t mode_t;
 
 typedef SOCKET os_fd_t;
+typedef HANDLE filesystem_os_id_t; // NOLINT(modernize-use-using)
 
 typedef unsigned int sa_family_t;
 
@@ -115,6 +120,7 @@ struct msghdr {
 #define IPV6_RECVPKTINFO IPV6_PKTINFO
 #endif
 
+#define INVALID_HANDLE INVALID_HANDLE_VALUE
 #define SOCKET_VALID(sock) ((sock) != INVALID_SOCKET)
 #define SOCKET_INVALID(sock) ((sock) == INVALID_SOCKET)
 #define SOCKET_FAILURE(rc) ((rc) == SOCKET_ERROR)
@@ -142,6 +148,12 @@ struct msghdr {
 #define SOCKET_ERROR_INVAL WSAEINVAL
 #define SOCKET_ERROR_ADDR_IN_USE WSAEADDRINUSE
 
+#define HANDLE_ERROR_PERM ERROR_ACCESS_DENIED
+#define HANDLE_ERROR_INVALID ERROR_INVALID_HANDLE
+
+namespace Platform {
+constexpr absl::string_view null_device_path{"NUL"};
+}
 #else // POSIX
 
 #include <arpa/inet.h>
@@ -189,8 +201,22 @@ struct msghdr {
 #define IP6T_SO_ORIGINAL_DST 80
 #endif
 
-typedef int os_fd_t;
+#ifndef SOL_UDP
+#define SOL_UDP 17
+#endif
 
+#ifndef UDP_GRO
+#define UDP_GRO 104
+#endif
+
+#ifndef UDP_SEGMENT
+#define UDP_SEGMENT 103
+#endif
+
+typedef int os_fd_t;
+typedef int filesystem_os_id_t; // NOLINT(modernize-use-using)
+
+#define INVALID_HANDLE -1
 #define INVALID_SOCKET -1
 #define SOCKET_VALID(sock) ((sock) >= 0)
 #define SOCKET_INVALID(sock) ((sock) == -1)
@@ -215,6 +241,13 @@ typedef int os_fd_t;
 #define SOCKET_ERROR_INVAL EINVAL
 #define SOCKET_ERROR_ADDR_IN_USE EADDRINUSE
 
+// Mapping POSIX file errors to common error names
+#define HANDLE_ERROR_PERM EACCES
+#define HANDLE_ERROR_INVALID EBADF
+
+namespace Platform {
+constexpr absl::string_view null_device_path{"/dev/null"};
+}
 #endif
 
 // Note: chromium disabled recvmmsg regardless of ndk version. However, the only Android target
@@ -224,7 +257,7 @@ typedef int os_fd_t;
 // Therefore, we decided to remove the Android check introduced here in
 // https://github.com/envoyproxy/envoy/pull/10120. If someone out there encounters problems with
 // this please bring up in Envoy's slack channel #envoy-udp-quic-dev.
-#if defined(__linux__)
+#if defined(__linux__) || defined(__EMSCRIPTEN__)
 #define ENVOY_MMSG_MORE 1
 #else
 #define ENVOY_MMSG_MORE 0
@@ -261,3 +294,11 @@ struct mmsghdr {
 #undef SUPPORTS_PTHREAD_NAMING
 #define SUPPORTS_PTHREAD_NAMING 1
 #endif // defined(__ANDROID_API__)
+
+#if defined(__linux__)
+// On Linux, default listen backlog size to net.core.somaxconn which is runtime configurable
+#define ENVOY_TCP_BACKLOG_SIZE -1
+#else
+// On non-Linux platforms use 128 which is libevent listener default
+#define ENVOY_TCP_BACKLOG_SIZE 128
+#endif

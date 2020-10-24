@@ -17,11 +17,22 @@ QUICHE_FLAG(
     bool, http2_reloadable_flag_http2_backend_alpn_failure_error_code, false,
     "If true, the GFE will return a new ResponseCodeDetails error when ALPN to the backend fails.")
 
+QUICHE_FLAG(bool, http2_reloadable_flag_http2_ip_based_cwnd_exp, true,
+            "If true, enable IP address based CWND bootstrapping experiment with different "
+            "bandwidth models and priorities in HTTP2.")
+
+QUICHE_FLAG(
+    bool, http2_reloadable_flag_http2_load_based_goaway_warning, false,
+    "If true, load-based connection closures will send a warning GOAWAY before the actual GOAWAY.")
+
 QUICHE_FLAG(bool, http2_reloadable_flag_http2_security_requirement_for_client3, false,
             "If true, check whether client meets security requirements during SSL handshake. If "
             "flag is true and client does not meet security requirements, do not negotiate HTTP/2 "
             "with client or terminate the session with SPDY_INADEQUATE_SECURITY if HTTP/2 is "
             "already negotiated. The spec contains both cipher and TLS version requirements.")
+
+QUICHE_FLAG(bool, http2_reloadable_flag_http2_websocket_detection, false,
+            "If true, uses a HTTP/2-specific method of detecting websocket upgrade requests.")
 
 QUICHE_FLAG(bool, http2_reloadable_flag_permissive_http2_switch, false,
             "If true, the GFE allows both HTTP/1.0 and HTTP/1.1 versions in HTTP/2 upgrade "
@@ -31,9 +42,26 @@ QUICHE_FLAG(bool, quic_reloadable_flag_advertise_quic_for_https_for_debugips, fa
 
 QUICHE_FLAG(bool, quic_reloadable_flag_advertise_quic_for_https_for_external_users, false, "")
 
+QUICHE_FLAG(bool, quic_reloadable_flag_gclb_quic_allow_alia, true,
+            "If gfe2_reloadable_flag_gclb_use_alia is also true, use Alia for GCLB QUIC "
+            "handshakes. To be used as a big red button if there's a problem with Alia/QUIC.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_abort_qpack_on_stream_close, false,
+            "If true, abort async QPACK header decompression in QuicSpdyStream::OnClose().")
+
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_ack_delay_alarm_granularity, false,
             "When true, ensure the ACK delay is never less than the alarm granularity when ACK "
             "decimation is enabled.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_add_missing_connected_checks, false,
+            "If true, add missing connected checks.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_add_silent_idle_timeout, true,
+            "If true, when server is silently closing connections due to idle timeout, serialize "
+            "the connection close packets which will be added to time wait list.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_add_stream_info_to_idle_close_detail, false,
+            "If true, include stream information in idle timeout connection close detail.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_allow_backend_set_stream_ttl, false,
             "If true, check backend response header for X-Response-Ttl. If it is provided, the "
@@ -46,17 +74,6 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_allow_client_enabled_bbr_v2, true,
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_alpn_dispatch, false,
             "Support different QUIC sessions, as indicated by ALPN. Used for QBONE.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_always_send_earliest_ack, false,
-            "If true, SendAllPendingAcks always send the earliest ACK.")
-
-QUICHE_FLAG(
-    bool, quic_reloadable_flag_quic_avoid_leak_writer_buffer, true,
-    "If true, QUIC will free writer-allocated packet buffer if writer->WritePacket is not called.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr2_add_ack_height_to_queueing_threshold, true,
-            "If true, QUIC BBRv2 to take ack height into account when calculating "
-            "queuing_threshold in PROBE_UP.")
-
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr2_avoid_too_low_probe_bw_cwnd, false,
             "If true, QUIC BBRv2's PROBE_BW mode will not reduce cwnd below BDP+ack_height.")
 
@@ -64,26 +81,13 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr2_fewer_startup_round_trips, fals
             "When true, the 1RTT and 2RTT connection options decrease the number of round trips in "
             "BBRv2 STARTUP without a 25% bandwidth increase to 1 or 2 round trips respectively.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr2_ignore_inflight_lo, false,
-            "When true, QUIC's BBRv2 ignores inflight_lo in PROBE_BW.")
-
 QUICHE_FLAG(
     bool, quic_reloadable_flag_quic_bbr2_limit_inflight_hi, false,
     "When true, the B2HI connection option limits reduction of inflight_hi to (1-Beta)*CWND.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr_donot_inject_bandwidth, true,
-            "If true, do not inject bandwidth in BbrSender::AdjustNetworkParameters.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr_fix_pacing_rate, true,
-            "If true, re-calculate pacing rate when cwnd gets bootstrapped.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr_flexible_app_limited, false,
-            "When true and the BBR9 connection option is present, BBR only considers bandwidth "
-            "samples app-limited if they're not filling the pipe.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr_mitigate_overly_large_bandwidth_sample, true,
-            "If true, when cwnd gets bootstrapped and causing badly overshoot, reset cwnd and "
-            "pacing rate based on measured bw.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr2_use_post_inflight_to_detect_queuing, false,
+            "If true, QUIC BBRv2 will use inflight byte after congestion event to detect queuing "
+            "during PROBE_UP.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr_no_bytes_acked_in_startup_recovery, false,
             "When in STARTUP and recovery, do not add bytes_acked to QUIC BBR's CWND in "
@@ -92,11 +96,28 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_bbr_no_bytes_acked_in_startup_recove
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_bootstrap_cwnd_by_spdy_priority, true,
             "If true, bootstrap initial QUIC cwnd by SPDY priorities.")
 
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_cap_large_client_initial_rtt, true,
+            "If true, cap client suggested initial RTT to 1s if it is longer than 1s.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_clean_up_spdy_session_destructor, false,
+            "If true, QuicSpdySession's destructor won't need to do cleanup.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_close_connection_in_on_can_write_with_blocked_writer,
+            false,
+            "If true, close connection if writer is still blocked while OnCanWrite is called.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_close_connection_on_serialization_failure, false,
+            "If true, close connection on packet serialization failures.")
+
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_conservative_bursts, false,
             "If true, set burst token to 2 in cwnd bootstrapping experiment.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_conservative_cwnd_and_pacing_gains, false,
             "If true, uses conservative cwnd gain and pacing gain when cwnd gets bootstrapped.")
+
+QUICHE_FLAG(
+    bool, quic_reloadable_flag_quic_copy_bbr_cwnd_to_bbr2, false,
+    "If true, when switching from BBR to BBRv2, BBRv2 will use BBR's cwnd as its initial cwnd.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_default_enable_5rto_blackhole_detection2, true,
             "If true, default-enable 5RTO blachole detection.")
@@ -111,14 +132,14 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_default_to_bbr_v2, false,
             "If true, use BBRv2 as the default congestion controller. Takes precedence over "
             "--quic_default_to_bbr.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_determine_serialized_packet_fate_early, false,
-            "If true, determine a serialized packet's fate before the packet gets serialized.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_draft_25, false,
-            "If true, disable QUIC version h3-25.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_server_blackhole_detection, false,
+            "If true, disable blackhole detection on server side.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_draft_27, false,
             "If true, disable QUIC version h3-27.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_draft_29, false,
+            "If true, disable QUIC version h3-29.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_q043, false,
             "If true, disable QUIC version Q043.")
@@ -126,43 +147,24 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_q043, false,
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_q046, false,
             "If true, disable QUIC version Q046.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_q048, true,
-            "If true, disable QUIC version Q048.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_q049, true,
-            "If true, disable QUIC version Q049.")
-
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_q050, false,
             "If true, disable QUIC version Q050.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_t050, false,
             "If true, disable QUIC version h3-T050.")
 
-QUICHE_FLAG(
-    bool, quic_reloadable_flag_quic_dispatcher_legacy_version_encapsulation, false,
-    "When true, QuicDispatcher supports decapsulation of Legacy Version Encapsulation packets.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_disable_version_t051, false,
+            "If true, disable QUIC version h3-T051.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_discard_initial_packet_with_key_dropped, false,
+            "If true, discard INITIAL packet if the key has been dropped.")
 
 QUICHE_FLAG(
     bool, quic_reloadable_flag_quic_do_not_accept_stop_waiting, false,
     "In v44 and above, where STOP_WAITING is never sent, close the connection if it's received.")
 
-QUICHE_FLAG(
-    bool, quic_reloadable_flag_quic_do_not_close_stream_again_on_connection_close, false,
-    "If true, do not try to close stream again if stream fails to be closed upon connection close.")
-
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_donot_reset_ideal_next_packet_send_time, false,
             "If true, stop resetting ideal_next_packet_send_time_ in pacing sender.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_dont_pad_chlo, false,
-            "When true, do not pad the QUIC_CRYPTO CHLO message itself. Note that the packet "
-            "containing the CHLO will still be padded.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_dont_send_max_ack_delay_if_default, false,
-            "When true, QUIC_CRYPTO versions of QUIC will not send the max ACK delay unless it is "
-            "configured to a non-default value.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_enable_ack_decimation, true,
-            "Default enables QUIC ack decimation and adds a connection option to disable it.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_enable_loss_detection_experiment_at_gfe, false,
             "If ture, enable GFE-picked loss detection experiment.")
@@ -170,57 +172,72 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_enable_loss_detection_experiment_at_
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_enable_loss_detection_tuner, false,
             "If true, allow QUIC loss detection tuning to be enabled by connection option ELDT.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_enable_tls_resumption_v2, false,
-            "If true, enables support for TLS resumption in QUIC.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_enable_version_draft_29, false,
-            "If true, enable QUIC version h3-29.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_enable_zero_rtt_for_tls, false,
-            "If true, support for IETF QUIC 0-rtt is enabled.")
+QUICHE_FLAG(
+    bool, quic_reloadable_flag_quic_enable_mtu_discovery_at_server, false,
+    "If true, QUIC will default enable MTU discovery at server, with a target of 1450 bytes.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_enabled, false, "")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_bbr_cwnd_in_bandwidth_resumption, true,
-            "If true, adjust congestion window when doing bandwidth resumption in BBR.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_arm_pto_for_application_data, false,
+            "If true, do not arm PTO for application data until handshake confirmed.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_extra_padding_bytes, false,
-            "If true, consider frame expansion when calculating extra padding bytes to meet "
-            "minimum plaintext packet size required for header protection.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_bytes_left_for_batch_write, false,
+            "If true, convert bytes_left_for_batch_write_ to unsigned int.")
 
 QUICHE_FLAG(
-    bool, quic_reloadable_flag_quic_fix_gquic_stream_type, false,
-    "If true, do not use QuicUtil::IsBidirectionalStreamId() to determine gQUIC stream type.")
+    bool, quic_reloadable_flag_quic_fix_http3_goaway_stream_id, false,
+    "If true, send the lowest stream ID that can be retried by the client in a GOAWAY frame. If "
+    "false, send the highest received stream ID, which actually should not be retried.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_min_crypto_frame_size, true,
-            "If true, include MinPlaintextPacketSize when deterine whether removing soft limit for "
-            "crypto frames.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_out_of_order_sending, false,
+            "If true, fix a potential out of order sending caused by handshake gets confirmed "
+            "while the coalescer is not empty.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_packet_number_length, false,
-            "If true, take the largest acked packet into account when computing the sent packet "
-            "number length.")
+QUICHE_FLAG(
+    bool, quic_reloadable_flag_quic_fix_pto_pending_timer_count, false,
+    "If true, make sure there is pending timer credit when trying to PTO retransmit any packets.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_pto_timeout, true,
-            "If true, use 0 as ack_delay when calculate PTO timeout for INITIAL and HANDSHAKE "
-            "packet number space.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_undecryptable_packets2, false,
+            "If true, remove processed undecryptable packets.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_server_pto_timeout, true,
-            "If true, do not arm PTO on half RTT packets if they are the only ones in flight.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_get_stream_information_from_stream_map, true,
+            "If true, gQUIC will only consult stream_map in QuicSession::GetNumActiveStreams().")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_fix_undecryptable_packets, false,
-            "If true, remove the head of line blocking caused by an unprocessable packet in the "
-            "undecryptable packets list.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_give_sent_packet_to_debug_visitor_after_sent, false,
+            "If true, QUIC connection will pass sent packet information to the debug visitor after "
+            "a packet is recorded as sent in sent packet manager.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_http3_new_default_urgency_value, false,
+            "If true, QuicStream::kDefaultUrgency is 3, otherwise 1.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_ip_based_cwnd_exp, true,
+            "If true, enable IP address based CWND bootstrapping experiment with different "
+            "bandwidth models and priorities. ")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_listener_never_fake_epollout, false,
             "If true, QuicListener::OnSocketIsWritable will always return false, which means there "
             "will never be a fake EPOLLOUT event in the next epoll iteration.")
 
+QUICHE_FLAG(bool,
+            quic_reloadable_flag_quic_neuter_initial_packet_in_coalescer_with_initial_key_discarded,
+            false, "If true, neuter initial packet in the coalescer when discarding initial keys.")
+
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_no_dup_experiment_id_2, false,
             "If true, transport connection stats doesn't report duplicated experiments for same "
             "connection.")
 
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_no_silent_close_for_idle_timeout, true,
+            "If true, always send connection close for idle timeout if NSLC is received.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_only_set_uaid_in_tcs_visitor, false,
+            "If true, QuicTransportConnectionStatsVisitor::PopulateTransportConnectionStats will "
+            "be the only place where TCS's uaid field is set.")
+
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_only_truncate_long_cids, true,
             "In IETF QUIC, only truncate long CIDs from the client's Initial, don't modify them.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_preferred_altsvc_version, false,
+            "When true, we will send a preferred QUIC version at the start of our Alt-Svc list.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_proxy_write_packed_strings, false,
             "If true, QuicProxyDispatcher will write packed_client_address and packed_server_vip "
@@ -230,27 +247,45 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_record_frontend_service_vip_mapping,
             "If true, for L1 GFE, as requests come in, record frontend service to VIP mapping "
             "which is used to announce VIP in SHLO for proxied sessions. ")
 
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_record_received_min_ack_delay, false,
+            "If true, record the received min_ack_delay in transport parameters to QUIC config.")
+
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_reject_all_traffic, false, "")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_remove_zombie_streams, true,
+            "If true, QuicSession doesn't keep a separate zombie_streams. Instead, all streams are "
+            "stored in stream_map_.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_require_handshake_confirmation, false,
             "If true, require handshake confirmation for QUIC connections, functionally disabling "
             "0-rtt handshakes.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_save_user_agent_in_quic_session, false,
-            "If true, save user agent into in QuicSession.")
+QUICHE_FLAG(
+    bool, quic_reloadable_flag_quic_send_key_update_not_yet_supported, false,
+    "When true, QUIC+TLS versions will send the key_update_not_yet_supported transport parameter.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_send_path_response, false,
+            "If true, send PATH_RESPONSE upon receiving PATH_CHALLENGE regardless of perspective. "
+            "--gfe2_reloadable_flag_quic_start_peer_migration_earlier has to be true before turn "
+            "on this flag.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_send_timestamps, false,
             "When the STMP connection option is sent by the client, timestamps in the QUIC ACK "
             "frame are sent and processed.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_server_push, true,
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_server_push, false,
             "If true, enable server push feature on QUIC.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_stop_sending_duplicate_max_streams, false,
-            "If true, session does not send duplicate MAX_STREAMS.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_set_resumed_ssl_session_early, false,
+            "If true, set resumed_ssl_session if this is a 0-RTT connection.")
 
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_support_handshake_done_in_t050, false,
-            "If true, support HANDSHAKE_DONE frame in T050.")
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_start_peer_migration_earlier, false,
+            "If true, while reading an IETF quic packet, start peer migration immediately when "
+            "detecting the existence of any non-probing frame instead of at the end of the packet.")
+
+QUICHE_FLAG(bool, quic_reloadable_flag_quic_stop_sending_uses_ietf_error_code, false,
+            "If true, use IETF QUIC application error codes in STOP_SENDING frames. If false, use "
+            "QuicRstStreamErrorCodes.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_testonly_default_false, false,
             "A testonly reloadable flag that will always default to false.")
@@ -261,13 +296,6 @@ QUICHE_FLAG(bool, quic_reloadable_flag_quic_testonly_default_true, true,
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_unified_iw_options, false,
             "When true, set the initial congestion control window from connection options in "
             "QuicSentPacketManager rather than TcpCubicSenderBytes.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_update_packet_size, false,
-            "If true, update packet size when the first frame gets queued.")
-
-QUICHE_FLAG(bool, quic_reloadable_flag_quic_use_dispatcher_clock_for_read_timestamp, true,
-            "If true, in QuicListener, use QuicDispatcher's clock as the source for packet read "
-            "timestamps.")
 
 QUICHE_FLAG(bool, quic_reloadable_flag_quic_use_header_stage_idle_list2, false,
             "If true, use header stage idle list for QUIC connections in GFE.")
@@ -294,18 +322,15 @@ QUICHE_FLAG(
     bool, quic_restart_flag_quic_allow_loas_multipacket_chlo, false,
     "If true, inspects QUIC CHLOs for kLOAS and early creates sessions to allow multi-packet CHLOs")
 
-QUICHE_FLAG(bool, quic_restart_flag_quic_dispatcher_track_top_1k_client_ip, true,
-            "If true, GfeQuicDispatcher will track the top 1000 client IPs.")
+QUICHE_FLAG(
+    bool, quic_restart_flag_quic_disable_gws_cwnd_experiment, false,
+    "If true, X-Google-Gws-Initial-Cwnd-Mode related header sent by GWS becomes no-op for QUIC.")
 
-QUICHE_FLAG(bool, quic_restart_flag_quic_google_transport_param_omit_old, false,
-            "When true, QUIC+TLS will not send nor parse the old-format Google-specific transport "
-            "parameters.")
+QUICHE_FLAG(bool, quic_restart_flag_quic_enable_tls_resumption_v4, true,
+            "If true, enables support for TLS resumption in QUIC.")
 
-QUICHE_FLAG(bool, quic_restart_flag_quic_ignore_cid_first_byte_in_rx_ring_bpf, true,
-            "If true, ignore CID first byte in BPF for RX_RING.")
-
-QUICHE_FLAG(bool, quic_restart_flag_quic_memslice_ensure_ownership, true,
-            "Call gfe2::MemSlice::EnsureReferenceCounted in the constructor of QuicMemSlice.")
+QUICHE_FLAG(bool, quic_restart_flag_quic_enable_zero_rtt_for_tls_v2, true,
+            "If true, support for IETF QUIC 0-rtt is enabled.")
 
 QUICHE_FLAG(bool, quic_restart_flag_quic_offload_pacing_to_usps2, false,
             "If true, QUIC offload pacing when using USPS as egress method.")
@@ -334,12 +359,11 @@ QUICHE_FLAG(bool, quic_restart_flag_quic_use_pigeon_socket_to_backend, false,
             "If true, create a shared pigeon socket for all quic to backend connections and switch "
             "to use it after successful handshake.")
 
-QUICHE_FLAG(bool, spdy_reloadable_flag_fix_spdy_header_coalescing, true,
-            "If true, when coalescing multivalued spdy headers, only headers that exist in spdy "
-            "headers block are updated.")
-
 QUICHE_FLAG(bool, spdy_reloadable_flag_quic_bootstrap_cwnd_by_spdy_priority, true,
             "If true, bootstrap initial QUIC cwnd by SPDY priorities.")
+
+QUICHE_FLAG(bool, spdy_reloadable_flag_quic_clean_up_spdy_session_destructor, false,
+            "If true, QuicSpdySession's destructor won't need to do cleanup.")
 
 QUICHE_FLAG(
     bool, spdy_reloadable_flag_spdy_discard_response_body_if_disallowed, false,

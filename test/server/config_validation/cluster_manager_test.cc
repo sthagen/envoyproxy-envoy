@@ -21,7 +21,6 @@
 #include "test/mocks/secret/mocks.h"
 #include "test/mocks/server/admin.h"
 #include "test/mocks/thread_local/mocks.h"
-#include "test/mocks/upstream/mocks.h"
 #include "test/test_common/simulated_time_system.h"
 #include "test/test_common/utility.h"
 
@@ -49,8 +48,8 @@ TEST(ValidationClusterManagerTest, MockedMethods) {
   Singleton::ManagerImpl singleton_manager{Thread::threadFactoryForTest()};
 
   ValidationClusterManagerFactory factory(
-      admin, runtime, stats_store, tls, random, dns_resolver, ssl_context_manager, dispatcher,
-      local_info, secret_manager, validation_context, *api, http_context, grpc_context, log_manager,
+      admin, runtime, stats_store, tls, dns_resolver, ssl_context_manager, dispatcher, local_info,
+      secret_manager, validation_context, *api, http_context, grpc_context, log_manager,
       singleton_manager, time_system);
 
   const envoy::config::bootstrap::v3::Bootstrap bootstrap;

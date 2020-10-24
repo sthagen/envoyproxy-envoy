@@ -11,15 +11,27 @@
 namespace Envoy {
 namespace Server {
 
-enum class OverloadActionState {
-  /**
-   * Indicates that an overload action is active because at least one of its triggers has fired.
-   */
-  Active,
-  /**
-   * Indicates that an overload action is inactive because none of its triggers have fired.
-   */
-  Inactive
+/**
+ * Tracks the state of an overload action. The state is a number between 0 and 1 that represents the
+ * level of saturation. The values are categorized in two groups:
+ * - Saturated (value = 1): indicates that an overload action is active because at least one of its
+ *   triggers has reached saturation.
+ * - Scaling (0 <= value < 1): indicates that an overload action is not saturated.
+ */
+class OverloadActionState {
+public:
+  static constexpr OverloadActionState inactive() { return OverloadActionState(0); }
+
+  static constexpr OverloadActionState saturated() { return OverloadActionState(1.0); }
+
+  explicit constexpr OverloadActionState(float value)
+      : action_value_(std::min(1.0f, std::max(0.0f, value))) {}
+
+  float value() const { return action_value_; }
+  bool isSaturated() const { return action_value_ == 1; }
+
+private:
+  float action_value_;
 };
 
 /**
@@ -49,6 +61,10 @@ public:
 
   // Overload action to stop accepting new connections.
   const std::string StopAcceptingConnections = "envoy.overload_actions.stop_accepting_connections";
+
+  // Overload action to reject (accept and then close) new connections.
+  const std::string RejectIncomingConnections =
+      "envoy.overload_actions.reject_incoming_connections";
 
   // Overload action to try to shrink the heap by releasing free memory.
   const std::string ShrinkHeap = "envoy.overload_actions.shrink_heap";

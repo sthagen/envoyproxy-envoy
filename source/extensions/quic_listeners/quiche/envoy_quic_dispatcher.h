@@ -1,16 +1,18 @@
 #pragma once
 
+#if defined(__GNUC__)
 #pragma GCC diagnostic push
-// QUICHE allows unused parameters.
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-// QUICHE uses offsetof().
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
 #pragma GCC diagnostic ignored "-Wtype-limits"
+#endif
 
 #include "quiche/quic/core/quic_dispatcher.h"
 #include "quiche/quic/core/quic_utils.h"
 
+#if defined(__GNUC__)
 #pragma GCC diagnostic pop
+#endif
 
 #include <string>
 
@@ -59,6 +61,7 @@ public:
 protected:
   std::unique_ptr<quic::QuicSession>
   CreateQuicSession(quic::QuicConnectionId server_connection_id,
+                    const quic::QuicSocketAddress& self_address,
                     const quic::QuicSocketAddress& peer_address, quiche::QuicheStringPiece alpn,
                     const quic::ParsedQuicVersion& version) override;
 

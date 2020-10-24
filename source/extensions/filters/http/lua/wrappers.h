@@ -184,6 +184,8 @@ public:
   static ExportedFunctions exportedFunctions() {
     return {{"protocol", static_luaProtocol},
             {"dynamicMetadata", static_luaDynamicMetadata},
+            {"downstreamLocalAddress", static_luaDownstreamLocalAddress},
+            {"downstreamDirectRemoteAddress", static_luaDownstreamDirectRemoteAddress},
             {"downstreamSslConnection", static_luaDownstreamSslConnection}};
   }
 
@@ -206,6 +208,19 @@ private:
    */
   DECLARE_LUA_FUNCTION(StreamInfoWrapper, luaDownstreamSslConnection);
 
+  /**
+   * Get current downstream local address
+   * @return string representation of downstream local address.
+   */
+  DECLARE_LUA_FUNCTION(StreamInfoWrapper, luaDownstreamLocalAddress);
+
+  /**
+   * Get current downstream local address
+   * @return string representation of downstream directly connected address.
+   * This is equivalent to the address of the physical connection.
+   */
+  DECLARE_LUA_FUNCTION(StreamInfoWrapper, luaDownstreamDirectRemoteAddress);
+
   // Envoy::Lua::BaseLuaObject
   void onMarkDead() override { dynamic_metadata_wrapper_.reset(); }
 
@@ -218,21 +233,21 @@ private:
 };
 
 /**
- * Lua wrapper for EVP_PKEY.
+ * Lua wrapper for key for accessing the imported public keys.
  */
 class PublicKeyWrapper : public Filters::Common::Lua::BaseLuaObject<PublicKeyWrapper> {
 public:
-  PublicKeyWrapper(Envoy::Common::Crypto::CryptoObjectPtr key) : public_key_(std::move(key)) {}
+  explicit PublicKeyWrapper(absl::string_view key) : public_key_(key) {}
   static ExportedFunctions exportedFunctions() { return {{"get", static_luaGet}}; }
 
 private:
   /**
-   * Get a pointer to public key.
-   * @return pointer to public key.
+   * Get public key value.
+   * @return public key value or nil if key is empty.
    */
   DECLARE_LUA_FUNCTION(PublicKeyWrapper, luaGet);
 
-  Envoy::Common::Crypto::CryptoObjectPtr public_key_;
+  const std::string public_key_;
 };
 
 } // namespace Lua

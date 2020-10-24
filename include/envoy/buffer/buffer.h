@@ -9,13 +9,14 @@
 #include "envoy/common/exception.h"
 #include "envoy/common/platform.h"
 #include "envoy/common/pure.h"
-#include "envoy/network/io_handle.h"
 
 #include "common/common/byte_order.h"
+#include "common/common/utility.h"
 
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 
 namespace Envoy {
 namespace Buffer {
@@ -54,6 +55,21 @@ public:
    */
   virtual void done() PURE;
 };
+
+/**
+ * A class to facilitate extracting buffer slices from a buffer instance.
+ */
+class SliceData {
+public:
+  virtual ~SliceData() = default;
+
+  /**
+   * @return a mutable view of the slice data.
+   */
+  virtual absl::Span<uint8_t> getMutableData() PURE;
+};
+
+using SliceDataPtr = std::unique_ptr<SliceData>;
 
 /**
  * A basic buffer abstraction.
@@ -145,6 +161,15 @@ public:
   getRawSlices(absl::optional<uint64_t> max_slices = absl::nullopt) const PURE;
 
   /**
+   * Transfer ownership of the front slice to the caller. Must only be called if the
+   * buffer is not empty otherwise the implementation will have undefined behavior.
+   * If the underlying slice is immutable then the implementation must create and return
+   * a mutable slice that has a copy of the immutable data.
+   * @return pointer to SliceData object that wraps the front slice
+   */
+  virtual SliceDataPtr extractMutableFrontSlice() PURE;
+
+  /**
    * @return uint64_t the total length of the buffer (not necessarily contiguous in memory).
    */
   virtual uint64_t length() const PURE;
@@ -166,15 +191,6 @@ public:
    * @param length supplies the amount of data to move.
    */
   virtual void move(Instance& rhs, uint64_t length) PURE;
-
-  /**
-   * Read from a file descriptor directly into the buffer.
-   * @param io_handle supplies the io handle to read from.
-   * @param max_length supplies the maximum length to read.
-   * @return a IoCallUint64Result with err_ = nullptr and rc_ = the number of bytes
-   * read if successful, or err_ = some IoError for failure. If call failed, rc_ shouldn't be used.
-   */
-  virtual Api::IoCallUint64Result read(Network::IoHandle& io_handle, uint64_t max_length) PURE;
 
   /**
    * Reserve space in the buffer.
@@ -221,15 +237,6 @@ public:
   virtual std::string toString() const PURE;
 
   /**
-   * Write the buffer out to a file descriptor.
-   * @param io_handle supplies the io_handle to write to.
-   * @return a IoCallUint64Result with err_ = nullptr and rc_ = the number of bytes
-   * written if successful, or err_ = some IoError for failure. If call failed, rc_ shouldn't be
-   * used.
-   */
-  virtual Api::IoCallUint64Result write(Network::IoHandle& io_handle) PURE;
-
-  /**
    * Copy an integer out of the buffer.
    * @param start supplies the buffer index to start copying from.
    * @param Size how many bytes to read out of the buffer.
@@ -257,11 +264,11 @@ public:
    * deduced from the size of the type T
    */
   template <typename T, ByteOrder Endianness = ByteOrder::Host, size_t Size = sizeof(T)>
-  T peekInt(uint64_t start = 0) {
+  T peekInt(uint64_t start = 0) const {
     static_assert(Size <= sizeof(T), "requested size is bigger than integer being read");
 
     if (length() < start + Size) {
-      throw EnvoyException("buffer underflow");
+      ExceptionUtil::throwEnvoyException("buffer underflow");
     }
 
     constexpr const auto displacement = Endianness == ByteOrder::BigEndian ? sizeof(T) - Size : 0;
@@ -293,7 +300,7 @@ public:
    * @param start supplies the buffer index to start copying from.
    * @param Size how many bytes to read out of the buffer.
    */
-  template <typename T, size_t Size = sizeof(T)> T peekLEInt(uint64_t start = 0) {
+  template <typename T, size_t Size = sizeof(T)> T peekLEInt(uint64_t start = 0) const {
     return peekInt<T, ByteOrder::LittleEndian, Size>(start);
   }
 
@@ -302,7 +309,7 @@ public:
    * @param start supplies the buffer index to start copying from.
    * @param Size how many bytes to read out of the buffer.
    */
-  template <typename T, size_t Size = sizeof(T)> T peekBEInt(uint64_t start = 0) {
+  template <typename T, size_t Size = sizeof(T)> T peekBEInt(uint64_t start = 0) const {
     return peekInt<T, ByteOrder::BigEndian, Size>(start);
   }
 

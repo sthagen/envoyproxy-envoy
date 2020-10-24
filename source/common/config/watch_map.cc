@@ -8,6 +8,15 @@
 namespace Envoy {
 namespace Config {
 
+namespace {
+// Returns the namespace part (if there's any) in the resource name.
+std::string namespaceFromName(const std::string& resource_name) {
+  const auto pos = resource_name.find_last_of('/');
+  // we are not interested in the "/" character in the namespace
+  return pos == std::string::npos ? "" : resource_name.substr(0, pos);
+}
+} // namespace
+
 Watch* WatchMap::addWatch(SubscriptionCallbacks& callbacks,
                           OpaqueResourceDecoder& resource_decoder) {
   auto watch = std::make_unique<Watch>(callbacks, resource_decoder);
@@ -59,8 +68,14 @@ AddedRemoved WatchMap::updateWatchInterest(Watch* watch,
 }
 
 absl::flat_hash_set<Watch*> WatchMap::watchesInterestedIn(const std::string& resource_name) {
-  absl::flat_hash_set<Watch*> ret = wildcard_watches_;
-  const auto watches_interested = watch_interest_.find(resource_name);
+  absl::flat_hash_set<Watch*> ret;
+  if (!use_namespace_matching_) {
+    ret = wildcard_watches_;
+  }
+
+  const auto prefix = namespaceFromName(resource_name);
+  const auto resource_key = use_namespace_matching_ && !prefix.empty() ? prefix : resource_name;
+  const auto watches_interested = watch_interest_.find(resource_key);
   if (watches_interested != watch_interest_.end()) {
     for (const auto& watch : watches_interested->second) {
       ret.insert(watch);
@@ -120,32 +135,6 @@ void WatchMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>
   }
 }
 
-// For responses to on-demand requests, replace the original watch for an alias
-// with one for the resource's name
-AddedRemoved WatchMap::convertAliasWatchesToNameWatches(
-    const envoy::service::discovery::v3::Resource& resource) {
-  absl::flat_hash_set<Watch*> watches_to_update;
-  for (const auto& alias : resource.aliases()) {
-    const auto interested_watches = watch_interest_.find(alias);
-    if (interested_watches != watch_interest_.end()) {
-      for (const auto& interested_watch : interested_watches->second) {
-        watches_to_update.insert(interested_watch);
-      }
-    }
-  }
-
-  auto ret = AddedRemoved({}, {});
-  for (const auto& watch : watches_to_update) {
-    const auto& converted_watches = updateWatchInterest(watch, {resource.name()});
-    std::copy(converted_watches.added_.begin(), converted_watches.added_.end(),
-              std::inserter(ret.added_, ret.added_.end()));
-    std::copy(converted_watches.removed_.begin(), converted_watches.removed_.end(),
-              std::inserter(ret.removed_, ret.removed_.end()));
-  }
-
-  return ret;
-}
-
 void WatchMap::onConfigUpdate(
     const Protobuf::RepeatedPtrField<envoy::service::discovery::v3::Resource>& added_resources,
     const Protobuf::RepeatedPtrField<std::string>& removed_resources,
@@ -181,28 +170,33 @@ void WatchMap::onConfigUpdate(
   }
 
   // We just bundled up the updates into nice per-watch packages. Now, deliver them.
-  for (const auto& added : per_watch_added) {
-    const Watch* cur_watch = added.first;
+  for (const auto& [cur_watch, resource_to_add] : per_watch_added) {
     if (deferred_removed_during_update_->count(cur_watch) > 0) {
       continue;
     }
     const auto removed = per_watch_removed.find(cur_watch);
     if (removed == per_watch_removed.end()) {
       // additions only, no removals
-      cur_watch->callbacks_.onConfigUpdate(added.second, {}, system_version_info);
+      cur_watch->callbacks_.onConfigUpdate(resource_to_add, {}, system_version_info);
     } else {
       // both additions and removals
-      cur_watch->callbacks_.onConfigUpdate(added.second, removed->second, system_version_info);
+      cur_watch->callbacks_.onConfigUpdate(resource_to_add, removed->second, system_version_info);
       // Drop the removals now, so the final removals-only pass won't use them.
       per_watch_removed.erase(removed);
     }
   }
   // Any removals-only updates will not have been picked up in the per_watch_added loop.
-  for (auto& removed : per_watch_removed) {
-    if (deferred_removed_during_update_->count(removed.first) > 0) {
+  for (auto& [cur_watch, resource_to_remove] : per_watch_removed) {
+    if (deferred_removed_during_update_->count(cur_watch) > 0) {
       continue;
     }
-    removed.first->callbacks_.onConfigUpdate({}, removed.second, system_version_info);
+    cur_watch->callbacks_.onConfigUpdate({}, resource_to_remove, system_version_info);
+  }
+  // notify empty update
+  if (added_resources.empty() && removed_resources.empty()) {
+    for (auto& cur_watch : wildcard_watches_) {
+      cur_watch->callbacks_.onConfigUpdate({}, {}, system_version_info);
+    }
   }
 }
 

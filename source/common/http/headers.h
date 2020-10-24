@@ -61,9 +61,16 @@ public:
   const LowerCaseString AccessControlAllowCredentials{"access-control-allow-credentials"};
   const LowerCaseString Authorization{"authorization"};
   const LowerCaseString CacheControl{"cache-control"};
+  const LowerCaseString CdnLoop{"cdn-loop"};
   const LowerCaseString ContentEncoding{"content-encoding"};
   const LowerCaseString Etag{"etag"};
   const LowerCaseString GrpcAcceptEncoding{"grpc-accept-encoding"};
+  const LowerCaseString IfMatch{"if-match"};
+  const LowerCaseString IfNoneMatch{"if-none-match"};
+  const LowerCaseString IfModifiedSince{"if-modified-since"};
+  const LowerCaseString IfUnmodifiedSince{"if-unmodified-since"};
+  const LowerCaseString IfRange{"if-range"};
+  const LowerCaseString LastModified{"last-modified"};
   const LowerCaseString Origin{"origin"};
   const LowerCaseString OtSpanContext{"x-ot-span-context"};
   const LowerCaseString Pragma{"pragma"};
@@ -96,7 +103,7 @@ public:
   } CORSValues;
 
   struct {
-    const std::string Default{"identity,deflate,gzip"};
+    const std::string Default{"identity"};
   } GrpcAcceptEncodingValues;
 
   struct {
@@ -113,7 +120,7 @@ using CustomHeaders = ConstSingleton<CustomHeaderValues>;
  */
 class HeaderValues {
 public:
-  const char* prefix() { return ThreadSafeSingleton<PrefixValue>::get().prefix(); }
+  const char* prefix() const { return ThreadSafeSingleton<PrefixValue>::get().prefix(); }
 
   const LowerCaseString Age{"age"};
   const LowerCaseString ProxyAuthenticate{"proxy-authenticate"};
@@ -121,11 +128,11 @@ public:
   const LowerCaseString ClientTraceId{"x-client-trace-id"};
   const LowerCaseString Connection{"connection"};
   const LowerCaseString ContentLength{"content-length"};
+  const LowerCaseString ContentRange{"content-range"};
   const LowerCaseString ContentType{"content-type"};
   const LowerCaseString Cookie{"cookie"};
   const LowerCaseString Date{"date"};
   const LowerCaseString EnvoyAttemptCount{absl::StrCat(prefix(), "-attempt-count")};
-  const LowerCaseString EnvoyAuthPartialBody{absl::StrCat(prefix(), "-auth-partial-body")};
   const LowerCaseString EnvoyCluster{absl::StrCat(prefix(), "-cluster")};
   const LowerCaseString EnvoyDegraded{absl::StrCat(prefix(), "-degraded")};
   const LowerCaseString EnvoyDownstreamServiceCluster{
@@ -192,6 +199,7 @@ public:
   const LowerCaseString Path{":path"};
   const LowerCaseString Protocol{":protocol"};
   const LowerCaseString ProxyConnection{"proxy-connection"};
+  const LowerCaseString Range{"range"};
   const LowerCaseString RequestId{"x-request-id"};
   const LowerCaseString Scheme{":scheme"};
   const LowerCaseString Server{"server"};
@@ -201,6 +209,7 @@ public:
   const LowerCaseString TE{"te"};
   const LowerCaseString Upgrade{"upgrade"};
   const LowerCaseString UserAgent{"user-agent"};
+  const LowerCaseString Vary{"vary"};
   const LowerCaseString Via{"via"};
   const LowerCaseString WWWAuthenticate{"www-authenticate"};
   const LowerCaseString XContentTypeOptions{"x-content-type-options"};

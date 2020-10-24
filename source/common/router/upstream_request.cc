@@ -290,7 +290,7 @@ void UpstreamRequest::resetStream() {
     span_->setTag(Tracing::Tags::get().Canceled, Tracing::Tags::get().True);
   }
 
-  if (conn_pool_->cancelAnyPendingRequest()) {
+  if (conn_pool_->cancelAnyPendingStream()) {
     ENVOY_STREAM_LOG(debug, "canceled pool request", *parent_.callbacks());
     ASSERT(!upstream_);
   }
@@ -440,10 +440,6 @@ void UpstreamRequest::encodeBodyAndTrailers() {
                        downstream_metadata_map_vector_);
       upstream_->encodeMetadata(downstream_metadata_map_vector_);
       downstream_metadata_map_vector_.clear();
-      if (shouldSendEndStream()) {
-        Buffer::OwnedImpl empty_data("");
-        upstream_->encodeData(empty_data, true);
-      }
     }
 
     if (buffered_request_body_) {

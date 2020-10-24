@@ -7,22 +7,23 @@
 
 #include "gtest/gtest.h"
 
-using testing::_;
-using testing::Return;
-using testing::SaveArg;
-
 namespace Envoy {
 namespace Extensions {
 namespace Common {
 namespace Tap {
 namespace {
 
+using ::testing::_;
+using ::testing::DoAll;
+using ::testing::Return;
+using ::testing::SaveArg;
+
 class MockExtensionConfig : public ExtensionConfig {
 public:
   MOCK_METHOD(const absl::string_view, adminId, ());
   MOCK_METHOD(void, clearTapConfig, ());
   MOCK_METHOD(void, newTapConfig,
-              (envoy::config::tap::v3::TapConfig && proto_config, Sink* admin_streamer));
+              (const envoy::config::tap::v3::TapConfig& proto_config, Sink* admin_streamer));
 };
 
 class AdminHandlerTest : public testing::Test {
@@ -49,7 +50,7 @@ public:
       R"EOF(
 config_id: test_config_id
 tap_config:
-  match_config:
+  match:
     any_match: true
   output_config:
     sinks:

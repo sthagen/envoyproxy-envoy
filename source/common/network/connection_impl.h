@@ -60,7 +60,7 @@ public:
   // Network::Connection
   void addBytesSentCallback(BytesSentCb cb) override;
   void enableHalfClose(bool enabled) override;
-  void close(ConnectionCloseType type) override;
+  void close(ConnectionCloseType type) final;
   std::string nextProtocol() const override { return transport_socket_->protocol(); }
   void noDelay(bool enable) override;
   void readDisable(bool disable) override;
@@ -90,6 +90,7 @@ public:
   StreamInfo::StreamInfo& streamInfo() override { return stream_info_; }
   const StreamInfo::StreamInfo& streamInfo() const override { return stream_info_; }
   absl::string_view transportFailureReason() const override;
+  absl::optional<std::chrono::milliseconds> lastRoundTripTime() const override;
 
   // Network::FilterManagerConnection
   void rawWrite(Buffer::Instance& data, bool end_stream) override;
@@ -132,7 +133,7 @@ protected:
   bool consumerWantsToRead();
 
   // Network::ConnectionImplBase
-  void closeConnectionImmediately() override;
+  void closeConnectionImmediately() final;
 
   void closeSocket(ConnectionEvent close_type);
 

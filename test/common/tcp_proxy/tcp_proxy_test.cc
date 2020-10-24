@@ -31,26 +31,25 @@
 #include "test/mocks/stream_info/mocks.h"
 #include "test/mocks/tcp/mocks.h"
 #include "test/mocks/upstream/host.h"
-#include "test/mocks/upstream/mocks.h"
 #include "test/test_common/utility.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
-using testing::_;
-using testing::Invoke;
-using testing::InvokeWithoutArgs;
-using testing::NiceMock;
-using testing::Return;
-using testing::ReturnPointee;
-using testing::ReturnRef;
-using testing::SaveArg;
 
 namespace Envoy {
 namespace TcpProxy {
 namespace {
 
 using ::Envoy::Network::UpstreamServerName;
+using ::testing::_;
+using ::testing::DoAll;
+using ::testing::Invoke;
+using ::testing::InvokeWithoutArgs;
+using ::testing::NiceMock;
+using ::testing::Return;
+using ::testing::ReturnPointee;
+using ::testing::ReturnRef;
+using ::testing::SaveArg;
 
 namespace {
 Config constructConfigFromYaml(const std::string& yaml,
@@ -104,6 +103,18 @@ idle_timeout: 1s
   NiceMock<Server::Configuration::MockFactoryContext> factory_context;
   Config config_obj(constructConfigFromV3Yaml(yaml, factory_context));
   EXPECT_EQ(std::chrono::seconds(1), config_obj.sharedConfig()->idleTimeout().value());
+}
+
+TEST(ConfigTest, MaxDownstreamConnectionDuration) {
+  const std::string yaml = R"EOF(
+stat_prefix: name
+cluster: foo
+max_downstream_connection_duration: 10s
+)EOF";
+
+  NiceMock<Server::Configuration::MockFactoryContext> factory_context;
+  Config config_obj(constructConfigFromV3Yaml(yaml, factory_context));
+  EXPECT_EQ(std::chrono::seconds(10), config_obj.maxDownstreamConnectionDuration().value());
 }
 
 TEST(ConfigTest, NoRouteConfig) {
@@ -424,10 +435,10 @@ TEST(ConfigTest, WeightedClustersConfig) {
   Config config_obj(constructConfigFromV3Yaml(yaml, factory_context));
 
   NiceMock<Network::MockConnection> connection;
-  EXPECT_CALL(factory_context.random_, random()).WillOnce(Return(0));
+  EXPECT_CALL(factory_context.api_.random_, random()).WillOnce(Return(0));
   EXPECT_EQ(std::string("cluster1"), config_obj.getRouteFromEntries(connection)->clusterName());
 
-  EXPECT_CALL(factory_context.random_, random()).WillOnce(Return(2));
+  EXPECT_CALL(factory_context.api_.random_, random()).WillOnce(Return(2));
   EXPECT_EQ(std::string("cluster2"), config_obj.getRouteFromEntries(connection)->clusterName());
 }
 
@@ -464,7 +475,7 @@ TEST(ConfigTest, WeightedClustersWithMetadataMatchConfig) {
     HashedValue hv1(v1), hv2(v2);
 
     NiceMock<Network::MockConnection> connection;
-    EXPECT_CALL(factory_context.random_, random()).WillOnce(Return(0));
+    EXPECT_CALL(factory_context.api_.random_, random()).WillOnce(Return(0));
 
     const auto route = config_obj.getRouteFromEntries(connection);
     EXPECT_NE(nullptr, route);
@@ -491,7 +502,7 @@ TEST(ConfigTest, WeightedClustersWithMetadataMatchConfig) {
     HashedValue hv3(v3), hv4(v4);
 
     NiceMock<Network::MockConnection> connection;
-    EXPECT_CALL(factory_context.random_, random()).WillOnce(Return(2));
+    EXPECT_CALL(factory_context.api_.random_, random()).WillOnce(Return(2));
 
     const auto route = config_obj.getRouteFromEntries(connection);
     EXPECT_NE(nullptr, route);
@@ -557,7 +568,7 @@ TEST(ConfigTest, WeightedClustersWithMetadataMatchAndTopLevelMetadataMatchConfig
     HashedValue hv1(v1), hv2(v2);
 
     NiceMock<Network::MockConnection> connection;
-    EXPECT_CALL(factory_context.random_, random()).WillOnce(Return(0));
+    EXPECT_CALL(factory_context.api_.random_, random()).WillOnce(Return(0));
 
     const auto route = config_obj.getRouteFromEntries(connection);
     EXPECT_NE(nullptr, route);
@@ -590,7 +601,7 @@ TEST(ConfigTest, WeightedClustersWithMetadataMatchAndTopLevelMetadataMatchConfig
     HashedValue hv3(v3), hv4(v4);
 
     NiceMock<Network::MockConnection> connection;
-    EXPECT_CALL(factory_context.random_, random()).WillOnce(Return(2));
+    EXPECT_CALL(factory_context.api_.random_, random()).WillOnce(Return(2));
 
     const auto route = config_obj.getRouteFromEntries(connection);
     EXPECT_NE(nullptr, route);
@@ -1147,6 +1158,15 @@ TEST_F(TcpProxyTest, DEPRECATED_FEATURE_TEST(ConnectAttemptsLimit)) {
   EXPECT_EQ(access_log_data_, "UF,URX");
 }
 
+TEST_F(TcpProxyTest, ConnectedNoOp) {
+  setup(1);
+  raiseEventUpstreamConnected(0);
+
+  upstream_callbacks_->onEvent(Network::ConnectionEvent::Connected);
+
+  filter_callbacks_.connection_.raiseEvent(Network::ConnectionEvent::RemoteClose);
+}
+
 // Test that the tcp proxy sends the correct notifications to the outlier detector
 TEST_F(TcpProxyTest, OutlierDetection) {
   envoy::extensions::filters::network::tcp_proxy::v3::TcpProxy config = defaultConfig();
@@ -1316,7 +1336,7 @@ TEST_F(TcpProxyTest, WeightedClusterWithMetadataMatch) {
   {
     Upstream::LoadBalancerContext* context;
 
-    EXPECT_CALL(factory_context_.random_, random()).WillOnce(Return(0));
+    EXPECT_CALL(factory_context_.api_.random_, random()).WillOnce(Return(0));
     EXPECT_CALL(factory_context_.cluster_manager_, tcpConnPoolForCluster("cluster1", _, _))
         .WillOnce(DoAll(SaveArg<2>(&context), Return(nullptr)));
     EXPECT_EQ(Network::FilterStatus::StopIteration, filter_->onNewConnection());
@@ -1340,7 +1360,7 @@ TEST_F(TcpProxyTest, WeightedClusterWithMetadataMatch) {
   {
     Upstream::LoadBalancerContext* context;
 
-    EXPECT_CALL(factory_context_.random_, random()).WillOnce(Return(2));
+    EXPECT_CALL(factory_context_.api_.random_, random()).WillOnce(Return(2));
     EXPECT_CALL(factory_context_.cluster_manager_, tcpConnPoolForCluster("cluster2", _, _))
         .WillOnce(DoAll(SaveArg<2>(&context), Return(nullptr)));
     EXPECT_EQ(Network::FilterStatus::StopIteration, filter_->onNewConnection());
@@ -1359,6 +1379,100 @@ TEST_F(TcpProxyTest, WeightedClusterWithMetadataMatch) {
     EXPECT_EQ("k2", effective_criterions[1]->name());
     EXPECT_EQ(hv2, effective_criterions[1]->value());
   }
+}
+
+// Test that metadata match criteria provided on the StreamInfo is used.
+TEST_F(TcpProxyTest, StreamInfoDynamicMetadata) {
+  configure(defaultConfig());
+
+  ProtobufWkt::Value val;
+  val.set_string_value("val");
+
+  envoy::config::core::v3::Metadata metadata;
+  ProtobufWkt::Struct& map =
+      (*metadata.mutable_filter_metadata())[Envoy::Config::MetadataFilters::get().ENVOY_LB];
+  (*map.mutable_fields())["test"] = val;
+  EXPECT_CALL(filter_callbacks_.connection_.stream_info_, dynamicMetadata())
+      .WillOnce(ReturnRef(metadata));
+
+  filter_ = std::make_unique<Filter>(config_, factory_context_.cluster_manager_);
+  filter_->initializeReadFilterCallbacks(filter_callbacks_);
+
+  Upstream::LoadBalancerContext* context;
+
+  EXPECT_CALL(factory_context_.cluster_manager_, tcpConnPoolForCluster(_, _, _))
+      .WillOnce(DoAll(SaveArg<2>(&context), Return(nullptr)));
+  EXPECT_EQ(Network::FilterStatus::StopIteration, filter_->onNewConnection());
+
+  EXPECT_NE(nullptr, context);
+
+  const auto effective_criteria = context->metadataMatchCriteria();
+  EXPECT_NE(nullptr, effective_criteria);
+
+  const auto& effective_criterions = effective_criteria->metadataMatchCriteria();
+  EXPECT_EQ(1, effective_criterions.size());
+
+  EXPECT_EQ("test", effective_criterions[0]->name());
+  EXPECT_EQ(HashedValue(val), effective_criterions[0]->value());
+}
+
+// Test that if both streamInfo and configuration add metadata match criteria, they
+// are merged.
+TEST_F(TcpProxyTest, StreamInfoDynamicMetadataAndConfigMerged) {
+  const std::string yaml = R"EOF(
+  stat_prefix: name
+  weighted_clusters:
+    clusters:
+    - name: cluster1
+      weight: 1
+      metadata_match:
+        filter_metadata:
+          envoy.lb:
+            k0: v0
+            k1: from_config
+)EOF";
+
+  config_ = std::make_shared<Config>(constructConfigFromYaml(yaml, factory_context_));
+
+  ProtobufWkt::Value v0, v1, v2;
+  v0.set_string_value("v0");
+  v1.set_string_value("from_streaminfo"); // 'v1' is overridden with this value by streamInfo.
+  v2.set_string_value("v2");
+  HashedValue hv0(v0), hv1(v1), hv2(v2);
+
+  envoy::config::core::v3::Metadata metadata;
+  ProtobufWkt::Struct& map =
+      (*metadata.mutable_filter_metadata())[Envoy::Config::MetadataFilters::get().ENVOY_LB];
+  (*map.mutable_fields())["k1"] = v1;
+  (*map.mutable_fields())["k2"] = v2;
+  EXPECT_CALL(filter_callbacks_.connection_.stream_info_, dynamicMetadata())
+      .WillOnce(ReturnRef(metadata));
+
+  filter_ = std::make_unique<Filter>(config_, factory_context_.cluster_manager_);
+  filter_->initializeReadFilterCallbacks(filter_callbacks_);
+
+  Upstream::LoadBalancerContext* context;
+
+  EXPECT_CALL(factory_context_.cluster_manager_, tcpConnPoolForCluster(_, _, _))
+      .WillOnce(DoAll(SaveArg<2>(&context), Return(nullptr)));
+  EXPECT_EQ(Network::FilterStatus::StopIteration, filter_->onNewConnection());
+
+  EXPECT_NE(nullptr, context);
+
+  const auto effective_criteria = context->metadataMatchCriteria();
+  EXPECT_NE(nullptr, effective_criteria);
+
+  const auto& effective_criterions = effective_criteria->metadataMatchCriteria();
+  EXPECT_EQ(3, effective_criterions.size());
+
+  EXPECT_EQ("k0", effective_criterions[0]->name());
+  EXPECT_EQ(hv0, effective_criterions[0]->value());
+
+  EXPECT_EQ("k1", effective_criterions[1]->name());
+  EXPECT_EQ(hv1, effective_criterions[1]->value());
+
+  EXPECT_EQ("k2", effective_criterions[2]->name());
+  EXPECT_EQ(hv2, effective_criterions[2]->value());
 }
 
 TEST_F(TcpProxyTest, DEPRECATED_FEATURE_TEST(DisconnectBeforeData)) {

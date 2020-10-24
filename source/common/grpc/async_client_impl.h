@@ -10,6 +10,7 @@
 #include "common/grpc/codec.h"
 #include "common/grpc/typed_async_client.h"
 #include "common/http/async_client_impl.h"
+#include "common/router/header_parser.h"
 
 namespace Envoy {
 namespace Grpc {
@@ -37,9 +38,11 @@ public:
 private:
   Upstream::ClusterManager& cm_;
   const std::string remote_cluster_name_;
-  const Protobuf::RepeatedPtrField<envoy::config::core::v3::HeaderValue> initial_metadata_;
+  // The host header value in the http transport.
+  const std::string host_name_;
   std::list<AsyncStreamImplPtr> active_streams_;
   TimeSource& time_source_;
+  Router::HeaderParserPtr metadata_parser_;
 
   friend class AsyncRequestImpl;
   friend class AsyncStreamImpl;

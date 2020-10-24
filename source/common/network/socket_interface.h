@@ -1,7 +1,7 @@
 #pragma once
 
 #include "envoy/config/typed_config.h"
-#include "envoy/network/socket.h"
+#include "envoy/network/socket_interface.h"
 #include "envoy/registry/registry.h"
 #include "envoy/server/bootstrap_extension_config.h"
 
@@ -17,9 +17,8 @@ namespace Network {
 class SocketInterfaceExtension : public Server::BootstrapExtension {
 public:
   SocketInterfaceExtension(SocketInterface& sock_interface) : sock_interface_(sock_interface) {}
-  SocketInterface& socketInterface() { return sock_interface_; }
 
-private:
+protected:
   SocketInterface& sock_interface_;
 };
 
@@ -51,24 +50,6 @@ static inline const SocketInterface* socketInterface(std::string name) {
 
 using SocketInterfaceSingleton = InjectableSingleton<SocketInterface>;
 using SocketInterfaceLoader = ScopedInjectableLoader<SocketInterface>;
-
-/**
- * Create IoHandle for given address
- * @param type type of socket to be requested
- * @param addr address that is gleaned for address type, version and socket interface name
- * @return @ref Network::IoHandlePtr that wraps the underlying socket file descriptor
- */
-static inline IoHandlePtr ioHandleForAddr(Socket::Type type,
-                                          const Address::InstanceConstSharedPtr addr) {
-  auto sock_interface_name = addr->socketInterface();
-  if (!sock_interface_name.empty()) {
-    auto sock_interface = socketInterface(sock_interface_name);
-    RELEASE_ASSERT(sock_interface != nullptr,
-                   fmt::format("missing socket interface {}", sock_interface_name));
-    return sock_interface->socket(type, addr);
-  }
-  return SocketInterfaceSingleton::get().socket(type, addr);
-}
 
 } // namespace Network
 } // namespace Envoy

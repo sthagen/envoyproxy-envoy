@@ -64,13 +64,14 @@ public:
   }
 
   Network::ListenerPtr createListener(Network::SocketSharedPtr&& socket,
-                                      Network::ListenerCallbacks& cb, bool bind_to_port) override {
-    return Network::ListenerPtr{createListener_(std::move(socket), cb, bind_to_port)};
+                                      Network::TcpListenerCallbacks& cb, bool bind_to_port,
+                                      uint32_t backlog_size) override {
+    return Network::ListenerPtr{createListener_(std::move(socket), cb, bind_to_port, backlog_size)};
   }
 
-  Network::UdpListenerPtr createUdpListener(Network::SocketSharedPtr&& socket,
+  Network::UdpListenerPtr createUdpListener(Network::SocketSharedPtr socket,
                                             Network::UdpListenerCallbacks& cb) override {
-    return Network::UdpListenerPtr{createUdpListener_(std::move(socket), cb)};
+    return Network::UdpListenerPtr{createUdpListener_(socket, cb)};
   }
 
   Event::TimerPtr createTimer(Event::TimerCb cb) override {
@@ -114,10 +115,10 @@ public:
               (os_fd_t fd, FileReadyCb cb, FileTriggerType trigger, uint32_t events));
   MOCK_METHOD(Filesystem::Watcher*, createFilesystemWatcher_, ());
   MOCK_METHOD(Network::Listener*, createListener_,
-              (Network::SocketSharedPtr && socket, Network::ListenerCallbacks& cb,
-               bool bind_to_port));
+              (Network::SocketSharedPtr && socket, Network::TcpListenerCallbacks& cb,
+               bool bind_to_port, uint32_t backlog_size));
   MOCK_METHOD(Network::UdpListener*, createUdpListener_,
-              (Network::SocketSharedPtr && socket, Network::UdpListenerCallbacks& cb));
+              (Network::SocketSharedPtr socket, Network::UdpListenerCallbacks& cb));
   MOCK_METHOD(Timer*, createTimer_, (Event::TimerCb cb));
   MOCK_METHOD(SchedulableCallback*, createSchedulableCallback_, (std::function<void()> cb));
   MOCK_METHOD(void, deferredDelete_, (DeferredDeletable * to_delete));
@@ -160,10 +161,8 @@ public:
 
   // Timer
   MOCK_METHOD(void, disableTimer, ());
-  MOCK_METHOD(void, enableTimer,
-              (const std::chrono::milliseconds&, const ScopeTrackedObject* scope));
-  MOCK_METHOD(void, enableHRTimer,
-              (const std::chrono::microseconds&, const ScopeTrackedObject* scope));
+  MOCK_METHOD(void, enableTimer, (std::chrono::milliseconds, const ScopeTrackedObject* scope));
+  MOCK_METHOD(void, enableHRTimer, (std::chrono::microseconds, const ScopeTrackedObject* scope));
   MOCK_METHOD(bool, enabled, ());
 
   MockDispatcher* dispatcher_{};
@@ -171,6 +170,9 @@ public:
   bool enabled_{};
 
   Event::TimerCb callback_;
+
+  // If not nullptr, will be set on dtor. This can help to verify that the timer was destroyed.
+  bool* timer_destroyed_{};
 };
 
 class MockSchedulableCallback : public SchedulableCallback {

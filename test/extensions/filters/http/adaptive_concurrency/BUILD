@@ -34,6 +34,7 @@ envoy_extension_cc_test(
         "adaptive_concurrency_filter_integration_test.h",
     ],
     extension_name = "envoy.filters.http.adaptive_concurrency",
+    # TODO(envoyproxy/windows-dev): diagnose clang-cl build test failure
     tags = ["fails_on_windows"],
     deps = [
         "//source/extensions/filters/http/adaptive_concurrency:config",

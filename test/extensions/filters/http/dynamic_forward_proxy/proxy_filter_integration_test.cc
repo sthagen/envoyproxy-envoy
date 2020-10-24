@@ -92,10 +92,9 @@ typed_config:
 
   void createUpstreams() override {
     if (upstream_tls_) {
-      fake_upstreams_.emplace_back(
-          new FakeUpstream(Ssl::createFakeUpstreamSslContext(upstream_cert_name_, context_manager_,
-                                                             factory_context_),
-                           0, FakeHttpConnection::Type::HTTP1, version_, timeSystem()));
+      addFakeUpstream(Ssl::createFakeUpstreamSslContext(upstream_cert_name_, context_manager_,
+                                                        factory_context_),
+                      FakeHttpConnection::Type::HTTP1);
     } else {
       HttpIntegrationTest::createUpstreams();
     }
@@ -270,8 +269,8 @@ TEST_P(ProxyFilterIntegrationTest, UpstreamTls) {
   auto response = codec_client_->makeHeaderOnlyRequest(request_headers);
   waitForNextUpstreamRequest();
 
-  const Extensions::TransportSockets::Tls::SslSocketInfo* ssl_socket =
-      dynamic_cast<const Extensions::TransportSockets::Tls::SslSocketInfo*>(
+  const Extensions::TransportSockets::Tls::SslHandshakerImpl* ssl_socket =
+      dynamic_cast<const Extensions::TransportSockets::Tls::SslHandshakerImpl*>(
           fake_upstream_connection_->connection().ssl().get());
   EXPECT_STREQ("localhost", SSL_get_servername(ssl_socket->ssl(), TLSEXT_NAMETYPE_host_name));
 
@@ -295,8 +294,8 @@ TEST_P(ProxyFilterIntegrationTest, UpstreamTlsWithIpHost) {
   waitForNextUpstreamRequest();
 
   // No SNI for IP hosts.
-  const Extensions::TransportSockets::Tls::SslSocketInfo* ssl_socket =
-      dynamic_cast<const Extensions::TransportSockets::Tls::SslSocketInfo*>(
+  const Extensions::TransportSockets::Tls::SslHandshakerImpl* ssl_socket =
+      dynamic_cast<const Extensions::TransportSockets::Tls::SslHandshakerImpl*>(
           fake_upstream_connection_->connection().ssl().get());
   EXPECT_STREQ(nullptr, SSL_get_servername(ssl_socket->ssl(), TLSEXT_NAMETYPE_host_name));
 
@@ -310,9 +309,6 @@ TEST_P(ProxyFilterIntegrationTest, UpstreamTlsInvalidSAN) {
   upstream_tls_ = true;
   upstream_cert_name_ = "upstream";
   setup();
-  // The upstream connection is going to fail handshake so make sure it can read and we expect
-  // it to disconnect.
-  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
   fake_upstreams_[0]->setReadDisableOnNewConnection(false);
 
   codec_client_ = makeHttpConnection(lookupPort("http"));
