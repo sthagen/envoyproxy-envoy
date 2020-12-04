@@ -70,8 +70,6 @@ public:
   void onFailure() override;
   Network::TransportSocketCallbacks* transportSocketCallbacks() override { return callbacks_; }
 
-  SSL* rawSslForTest() const { return rawSsl(); }
-
 protected:
   SSL* rawSsl() const { return info_->ssl_.get(); }
 
@@ -106,11 +104,11 @@ public:
   ClientSslSocketFactory(Envoy::Ssl::ClientContextConfigPtr config,
                          Envoy::Ssl::ContextManager& manager, Stats::Scope& stats_scope);
 
-  // Network::TransportSocketFactory
   Network::TransportSocketPtr
   createTransportSocket(Network::TransportSocketOptionsSharedPtr options) const override;
   bool implementsSecureTransport() const override;
-  bool isReady() const override;
+  bool usesProxyProtocolOptions() const override { return false; }
+
   // Secret::SecretCallbacks
   void onAddOrUpdateSecret() override;
 
@@ -134,7 +132,8 @@ public:
   Network::TransportSocketPtr
   createTransportSocket(Network::TransportSocketOptionsSharedPtr options) const override;
   bool implementsSecureTransport() const override;
-  bool isReady() const override;
+  bool usesProxyProtocolOptions() const override { return false; }
+
   // Secret::SecretCallbacks
   void onAddOrUpdateSecret() override;
 

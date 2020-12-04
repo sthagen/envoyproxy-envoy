@@ -5,7 +5,6 @@
 #include "envoy/common/exception.h"
 #include "envoy/config/overload/v3/overload.pb.h"
 #include "envoy/config/overload/v3/overload.pb.validate.h"
-#include "envoy/server/overload_manager.h"
 #include "envoy/stats/scope.h"
 
 #include "common/common/fmt.h"
@@ -32,7 +31,7 @@ public:
       const NamedOverloadActionSymbolTable& action_symbol_table,
       const absl::flat_hash_map<OverloadTimerType, Event::ScaledTimerMinimum>& timer_minimums)
       : action_symbol_table_(action_symbol_table), timer_minimums_(timer_minimums),
-        actions_(action_symbol_table.size(), OverloadActionState(0)),
+        actions_(action_symbol_table.size(), OverloadActionState(UnitFloat::min())),
         scaled_timer_action_(action_symbol_table.lookup(OverloadActionNames::get().ReduceTimeouts)),
         scaled_timer_manager_(std::move(scaled_timer_manager)) {}
 
@@ -47,8 +46,14 @@ public:
                                     Event::TimerCb callback) override {
     auto minimum_it = timer_minimums_.find(timer_type);
     const Event::ScaledTimerMinimum minimum =
-        minimum_it != timer_minimums_.end() ? minimum_it->second
-                                            : Event::ScaledTimerMinimum(Event::ScaledMinimum(1.0));
+        minimum_it != timer_minimums_.end()
+            ? minimum_it->second
+            : Event::ScaledTimerMinimum(Event::ScaledMinimum(UnitFloat::max()));
+    return scaled_timer_manager_->createTimer(minimum, std::move(callback));
+  }
+
+  Event::TimerPtr createScaledTimer(Event::ScaledTimerMinimum minimum,
+                                    Event::TimerCb callback) override {
     return scaled_timer_manager_->createTimer(minimum, std::move(callback));
   }
 
@@ -68,7 +73,7 @@ private:
   const Event::ScaledRangeTimerManagerPtr scaled_timer_manager_;
 };
 
-const OverloadActionState ThreadLocalOverloadStateImpl::always_inactive_{0.0};
+const OverloadActionState ThreadLocalOverloadStateImpl::always_inactive_{UnitFloat::min()};
 
 namespace {
 
@@ -109,8 +114,8 @@ public:
     } else if (value >= saturated_threshold_) {
       state_ = OverloadActionState::saturated();
     } else {
-      state_ = OverloadActionState((value - scaling_threshold_) /
-                                   (saturated_threshold_ - scaling_threshold_));
+      state_ = OverloadActionState(
+          UnitFloat((value - scaling_threshold_) / (saturated_threshold_ - scaling_threshold_)));
     }
     return state_.value() != old_state.value();
   }
@@ -165,7 +170,7 @@ parseTimerMinimums(const ProtobufWkt::Any& typed_config,
             ? Event::ScaledTimerMinimum(Event::AbsoluteMinimum(std::chrono::milliseconds(
                   DurationUtil::durationToMilliseconds(scale_timer.min_timeout()))))
             : Event::ScaledTimerMinimum(
-                  Event::ScaledMinimum(scale_timer.min_scale().value() / 100.0));
+                  Event::ScaledMinimum(UnitFloat(scale_timer.min_scale().value() / 100.0)));
 
     auto [_, inserted] = timer_map.insert(std::make_pair(timer_type, minimum));
     if (!inserted) {
@@ -384,7 +389,7 @@ bool OverloadManagerImpl::registerForAction(const std::string& action,
   return true;
 }
 
-ThreadLocalOverloadState& OverloadManagerImpl::getThreadLocalOverloadState() { return tls_.get(); }
+ThreadLocalOverloadState& OverloadManagerImpl::getThreadLocalOverloadState() { return *tls_; }
 
 Event::ScaledRangeTimerManagerPtr
 OverloadManagerImpl::createScaledRangeTimerManager(Event::Dispatcher& dispatcher) const {
@@ -442,9 +447,9 @@ void OverloadManagerImpl::flushResourceUpdates() {
     std::swap(*shared_updates, state_updates_to_flush_);
 
     tls_.runOnAllThreads(
-        [updates = std::move(shared_updates)](ThreadLocalOverloadStateImpl& overload_state) {
+        [updates = std::move(shared_updates)](OptRef<ThreadLocalOverloadStateImpl> overload_state) {
           for (const auto& [action, state] : *updates) {
-            overload_state.setState(action, state);
+            overload_state->setState(action, state);
           }
         });
   }

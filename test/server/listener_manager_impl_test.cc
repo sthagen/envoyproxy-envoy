@@ -29,6 +29,7 @@
 #include "test/server/utility.h"
 #include "test/test_common/network_utility.h"
 #include "test/test_common/registry.h"
+#include "test/test_common/test_runtime.h"
 #include "test/test_common/utility.h"
 
 #include "absl/strings/escaping.h"
@@ -166,6 +167,7 @@ filter_chains:
   EXPECT_CALL(server_.api_.random_, uuid());
   EXPECT_CALL(listener_factory_, createListenSocket(_, _, _, {true}));
   manager_->addOrUpdateListener(parseListenerFromV3Yaml(yaml), "", true);
+  EXPECT_EQ(&manager_->httpContext(), &server_.httpContext());
   EXPECT_EQ(1U, manager_->listeners().size());
   EXPECT_EQ(std::chrono::milliseconds(15000),
             manager_->listeners().front().get().listenerFiltersTimeout());
@@ -213,7 +215,7 @@ filter_chains:
   transport_socket:
     name: tls
     typed_config:
-      "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+      "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
       common_tls_context:
         tls_certificates:
         - certificate_chain:
@@ -240,6 +242,7 @@ filter_chains:
 
 TEST_F(ListenerManagerImplWithRealFiltersTest,
        DEPRECATED_FEATURE_TEST(TlsTransportSocketLegacyConfig)) {
+  TestDeprecatedV2Api _deprecated_v2_api;
   const std::string yaml = TestEnvironment::substitute(R"EOF(
 address:
   socket_address:
@@ -286,7 +289,7 @@ filter_chains:
   transport_socket:
      name: tls
      typed_config:
-       "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+       "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
        common_tls_context:
          tls_certificates:
          - certificate_chain:
@@ -331,6 +334,7 @@ filter_chains:
 
 TEST_F(ListenerManagerImplWithRealFiltersTest, UdpAddress) {
   EXPECT_CALL(*worker_, start(_));
+  EXPECT_FALSE(manager_->isWorkerStarted());
   manager_->startWorkers(guard_dog_);
   // Validate that there are no active listeners and workers are started.
   EXPECT_EQ(0, server_.stats_store_
@@ -367,6 +371,20 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, UdpAddress) {
   EXPECT_CALL(os_sys_calls_, close(_)).WillRepeatedly(Return(Api::SysCallIntResult{0, errno}));
   manager_->addOrUpdateListener(listener_proto, "", true);
   EXPECT_EQ(1u, manager_->listeners().size());
+}
+
+TEST_F(ListenerManagerImplWithRealFiltersTest, AllowOnlyDefaultFilterChain) {
+  const std::string yaml = R"EOF(
+address:
+  socket_address:
+    address: 127.0.0.1
+    port_value: 1234
+default_filter_chain:
+  filters: []
+  )EOF";
+
+  manager_->addOrUpdateListener(parseListenerFromV3Yaml(yaml), "", true);
+  EXPECT_EQ(1, manager_->listeners().size());
 }
 
 TEST_F(ListenerManagerImplWithRealFiltersTest, BadListenerConfig) {
@@ -558,7 +576,7 @@ TEST_F(ListenerManagerImplTest, UnsupportedInternalListener) {
   const std::string yaml = R"EOF(
 address:
   envoy_internal_address:
-    server_listener_name: a_listener_name  
+    server_listener_name: a_listener_name
 filter_chains:
 - filters: []
   )EOF";
@@ -1517,7 +1535,7 @@ filter_chains:
   ASSERT_TRUE(SOCKET_VALID(syscall_result.rc_));
 
   // On Windows if the socket has not been bound to an address with bind
-  // the call to getsockname fails with WSAEINVAL. To avoid that we make sure
+  // the call to getsockname fails with `WSAEINVAL`. To avoid that we make sure
   // that the bind system actually happens and it does not get mocked.
   ON_CALL(os_sys_calls_, bind(_, _, _))
       .WillByDefault(Invoke(
@@ -2154,7 +2172,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithDestinationP
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2200,7 +2218,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithDestinationI
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2246,7 +2264,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithServerNamesM
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2293,7 +2311,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithTransportPro
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2336,7 +2354,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithApplicationP
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2382,7 +2400,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithSourceTypeMa
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2443,7 +2461,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithSourceIpMatc
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2503,7 +2521,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithSourceIpv6Ma
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2542,7 +2560,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, SingleFilterChainWithSourcePortMa
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2588,7 +2606,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainWithSourceType
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2599,7 +2617,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainWithSourceType
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_uri_cert.pem" }
@@ -2609,7 +2627,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainWithSourceType
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_multiple_dns_cert.pem" }
@@ -2676,7 +2694,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDestinati
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_uri_cert.pem" }
@@ -2686,7 +2704,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDestinati
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2696,7 +2714,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDestinati
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_multiple_dns_cert.pem" }
@@ -2762,7 +2780,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDestinati
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_uri_cert.pem" }
@@ -2772,7 +2790,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDestinati
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2782,7 +2800,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDestinati
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_multiple_dns_cert.pem" }
@@ -2848,7 +2866,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithServerNam
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_uri_cert.pem" }
@@ -2861,7 +2879,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithServerNam
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2874,7 +2892,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithServerNam
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_multiple_dns_cert.pem" }
@@ -2949,7 +2967,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithTransport
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -2994,7 +3012,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithApplicati
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -3044,7 +3062,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithMultipleR
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -3103,7 +3121,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDifferent
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -3116,7 +3134,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, MultipleFilterChainsWithDifferent
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -3147,7 +3165,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest,
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -3160,7 +3178,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest,
       transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -3435,7 +3453,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInline) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { inline_string: ")EOF",
@@ -3463,7 +3481,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateChainInlinePrivateK
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - private_key: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_key.pem" }
@@ -3486,7 +3504,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateIncomplete) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_chain.pem" }
@@ -3509,7 +3527,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInvalidCertificateC
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { inline_string: "invalid" }
@@ -3533,7 +3551,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInvalidIntermediate
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { inline_string: ")EOF",
@@ -3555,7 +3573,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInvalidPrivateKey) 
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_chain.pem" }
@@ -3564,7 +3582,9 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInvalidPrivateKey) 
                                                        Network::Address::IpVersion::v4);
 
   EXPECT_THROW_WITH_MESSAGE(manager_->addOrUpdateListener(parseListenerFromV3Yaml(yaml), "", true),
-                            EnvoyException, "Failed to load private key from <inline>");
+                            EnvoyException,
+                            "Failed to load private key from <inline>, "
+                            "Cause: error:0900006e:PEM routines:OPENSSL_internal:NO_START_LINE");
 }
 
 TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInvalidTrustedCA) {
@@ -3575,7 +3595,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInvalidTrustedCA) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_chain.pem" }
@@ -3589,6 +3609,28 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateInvalidTrustedCA) {
                             EnvoyException, "Failed to load trusted CA certificates from <inline>");
 }
 
+TEST_F(ListenerManagerImplWithRealFiltersTest, TlsCertificateCertPrivateKeyMismatch) {
+  const std::string yaml = TestEnvironment::substitute(R"EOF(
+    address:
+      socket_address: { address: 127.0.0.1, port_value: 1234 }
+    filter_chains:
+    - transport_socket:
+        name: tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_chain.pem" }
+                private_key: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns2_key.pem" }
+  )EOF",
+                                                       Network::Address::IpVersion::v4);
+
+  EXPECT_THROW_WITH_REGEX(
+      manager_->addOrUpdateListener(parseListenerFromV3Yaml(yaml), "", true), EnvoyException,
+      "Failed to load private key from .*, "
+      "Cause: error:0b000074:X.509 certificate routines:OPENSSL_internal:KEY_VALUES_MISMATCH");
+}
+
 TEST_F(ListenerManagerImplWithRealFiltersTest, Metadata) {
   const std::string yaml = TestEnvironment::substitute(R"EOF(
     address:
@@ -3600,7 +3642,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, Metadata) {
       filters:
       - name: http
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           stat_prefix: metadata_test
           route_config:
             virtual_hosts:
@@ -3626,6 +3668,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, Metadata) {
             listener_factory_context = &context;
             return ProdListenerComponentFactory::createListenerFilterFactoryList_(filters, context);
           }));
+  server_.server_factory_context_->cluster_manager_.initializeClusters({"service_foo"}, {});
   manager_->addOrUpdateListener(parseListenerFromV3Yaml(yaml), "", true);
   ASSERT_NE(nullptr, listener_factory_context);
   EXPECT_EQ("test_value", Config::Metadata::metadataValue(
@@ -3983,7 +4026,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, CRLFilename) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -4010,7 +4053,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, CRLInline) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -4036,7 +4079,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, InvalidCRLInline) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -4059,7 +4102,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, CRLWithNoCA) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -4081,7 +4124,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, VerifySanWithNoCA) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -4107,7 +4150,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, VerifyIgnoreExpirationWithNoCA) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -4131,7 +4174,7 @@ TEST_F(ListenerManagerImplWithRealFiltersTest, VerifyIgnoreExpirationWithCA) {
     - transport_socket:
         name: tls
         typed_config:
-          "@type": type.googleapis.com/envoy.api.v2.auth.DownstreamTlsContext
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
             tls_certificates:
               - certificate_chain: { filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns_cert.pem" }
@@ -4162,7 +4205,7 @@ address:
     port_value: 1234
 api_listener:
   api_listener:
-    "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
     stat_prefix: hcm
     route_config:
       name: api_router
@@ -4177,6 +4220,8 @@ api_listener:
                 cluster: dynamic_forward_proxy_cluster
   )EOF";
 
+  server_.server_factory_context_->cluster_manager_.initializeClusters(
+      {"dynamic_forward_proxy_cluster"}, {});
   ASSERT_TRUE(manager_->addOrUpdateListener(parseListenerFromV3Yaml(yaml), "", false));
   EXPECT_EQ(0U, manager_->listeners().size());
   ASSERT_TRUE(manager_->apiListener().has_value());
@@ -4191,7 +4236,7 @@ address:
     port_value: 1234
 api_listener:
   api_listener:
-    "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
     stat_prefix: hcm
     route_config:
       name: api_router
@@ -4220,7 +4265,7 @@ address:
     port_value: 1234
 api_listener:
   api_listener:
-    "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
     stat_prefix: hcm
     route_config:
       name: api_router
@@ -4243,7 +4288,7 @@ address:
     port_value: 1234
 api_listener:
   api_listener:
-    "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
     stat_prefix: hcm
     route_config:
       name: api_router
@@ -4258,6 +4303,8 @@ api_listener:
                 cluster: dynamic_forward_proxy_cluster
   )EOF";
 
+  server_.server_factory_context_->cluster_manager_.initializeClusters(
+      {"dynamic_forward_proxy_cluster"}, {});
   ASSERT_TRUE(manager_->addOrUpdateListener(parseListenerFromV3Yaml(yaml), "", false));
   EXPECT_EQ(0U, manager_->listeners().size());
   ASSERT_TRUE(manager_->apiListener().has_value());

@@ -30,7 +30,7 @@ IoResult RawBufferSocket::doRead(Buffer::Instance& buffer) {
       }
       bytes_read += result.rc_;
       if (callbacks_->shouldDrainReadBuffer()) {
-        callbacks_->setReadBufferReady();
+        callbacks_->setTransportSocketIsReadable();
         break;
       }
     } else {
@@ -93,7 +93,5 @@ RawBufferSocketFactory::createTransportSocket(TransportSocketOptionsSharedPtr) c
 }
 
 bool RawBufferSocketFactory::implementsSecureTransport() const { return false; }
-
-bool RawBufferSocketFactory::isReady() const { return true; }
 } // namespace Network
 } // namespace Envoy

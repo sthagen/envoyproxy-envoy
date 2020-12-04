@@ -205,8 +205,8 @@ void ThreadLocalStoreImpl::mergeHistograms(PostMergeCb merge_complete_cb) {
     ASSERT(!merge_in_progress_);
     merge_in_progress_ = true;
     tls_cache_->runOnAllThreads(
-        [](TlsCache& tls_cache) {
-          for (const auto& id_hist : tls_cache.tls_histogram_cache_) {
+        [](OptRef<TlsCache> tls_cache) {
+          for (const auto& id_hist : tls_cache->tls_histogram_cache_) {
             const TlsHistogramSharedPtr& tls_hist = id_hist.second;
             tls_hist->beginMerge();
           }
@@ -303,7 +303,7 @@ void ThreadLocalStoreImpl::clearScopeFromCaches(uint64_t scope_id,
   if (!shutting_down_) {
     // Perform a cache flush on all threads.
     tls_cache_->runOnAllThreads(
-        [scope_id](TlsCache& tls_cache) { tls_cache.eraseScope(scope_id); },
+        [scope_id](OptRef<TlsCache> tls_cache) { tls_cache->eraseScope(scope_id); },
         [central_cache]() { /* Holds onto central_cache until all tls caches are clear */ });
   }
 }
@@ -320,7 +320,7 @@ void ThreadLocalStoreImpl::clearHistogramFromCaches(uint64_t histogram_id) {
     // contains a patch that will implement batching together to clear multiple
     // histograms.
     tls_cache_->runOnAllThreads(
-        [histogram_id](TlsCache& tls_cache) { tls_cache.eraseHistogram(histogram_id); });
+        [histogram_id](OptRef<TlsCache> tls_cache) { tls_cache->eraseHistogram(histogram_id); });
   }
 }
 
@@ -349,9 +349,8 @@ public:
       : pool_(tls.symbolTable()), stat_name_tags_(stat_name_tags.value_or(StatNameTagVector())) {
     if (!stat_name_tags) {
       TagVector tags;
-      tls.symbolTable().callWithStringView(name, [&tags, &tls, this](absl::string_view name_str) {
-        tag_extracted_name_ = pool_.add(tls.tagProducer().produceTags(name_str, tags));
-      });
+      tag_extracted_name_ =
+          pool_.add(tls.tagProducer().produceTags(tls.symbolTable().toString(name), tags));
       StatName empty;
       for (const auto& tag : tags) {
         StatName tag_name = tls.wellKnownTags().getBuiltin(tag.name_, empty);
@@ -489,7 +488,7 @@ Counter& ThreadLocalStoreImpl::ScopeImpl::counterFromStatNameWithTags(
   StatRefMap<Counter>* tls_cache = nullptr;
   StatNameHashSet* tls_rejected_stats = nullptr;
   if (!parent_.shutting_down_ && parent_.tls_cache_) {
-    TlsCacheEntry& entry = parent_.tls_cache_->get().insertScope(this->scope_id_);
+    TlsCacheEntry& entry = parent_.tlsCache().insertScope(this->scope_id_);
     tls_cache = &entry.counters_;
     tls_rejected_stats = &entry.rejected_stats_;
   }
@@ -541,7 +540,7 @@ Gauge& ThreadLocalStoreImpl::ScopeImpl::gaugeFromStatNameWithTags(
   StatRefMap<Gauge>* tls_cache = nullptr;
   StatNameHashSet* tls_rejected_stats = nullptr;
   if (!parent_.shutting_down_ && parent_.tls_cache_) {
-    TlsCacheEntry& entry = parent_.tls_cache_->get().scope_cache_[this->scope_id_];
+    TlsCacheEntry& entry = parent_.tlsCache().scope_cache_[this->scope_id_];
     tls_cache = &entry.gauges_;
     tls_rejected_stats = &entry.rejected_stats_;
   }
@@ -579,7 +578,7 @@ Histogram& ThreadLocalStoreImpl::ScopeImpl::histogramFromStatNameWithTags(
   StatNameHashMap<ParentHistogramSharedPtr>* tls_cache = nullptr;
   StatNameHashSet* tls_rejected_stats = nullptr;
   if (!parent_.shutting_down_ && parent_.tls_cache_) {
-    TlsCacheEntry& entry = parent_.tls_cache_->get().scope_cache_[this->scope_id_];
+    TlsCacheEntry& entry = parent_.tlsCache().scope_cache_[this->scope_id_];
     tls_cache = &entry.parent_histograms_;
     auto iter = tls_cache->find(final_stat_name);
     if (iter != tls_cache->end()) {
@@ -603,10 +602,7 @@ Histogram& ThreadLocalStoreImpl::ScopeImpl::histogramFromStatNameWithTags(
     StatNameTagHelper tag_helper(parent_, joiner.tagExtractedName(), stat_name_tags);
 
     ConstSupportedBuckets* buckets = nullptr;
-    symbolTable().callWithStringView(final_stat_name,
-                                     [&buckets, this](absl::string_view stat_name) {
-                                       buckets = &parent_.histogram_settings_->buckets(stat_name);
-                                     });
+    buckets = &parent_.histogram_settings_->buckets(symbolTable().toString(final_stat_name));
 
     RefcountPtr<ParentHistogramImpl> stat;
     {
@@ -657,7 +653,7 @@ TextReadout& ThreadLocalStoreImpl::ScopeImpl::textReadoutFromStatNameWithTags(
   StatRefMap<TextReadout>* tls_cache = nullptr;
   StatNameHashSet* tls_rejected_stats = nullptr;
   if (!parent_.shutting_down_ && parent_.tls_cache_) {
-    TlsCacheEntry& entry = parent_.tls_cache_->get().insertScope(this->scope_id_);
+    TlsCacheEntry& entry = parent_.tlsCache().insertScope(this->scope_id_);
     tls_cache = &entry.text_readouts_;
     tls_rejected_stats = &entry.rejected_stats_;
   }
@@ -703,7 +699,7 @@ Histogram& ThreadLocalStoreImpl::tlsHistogram(ParentHistogramImpl& parent, uint6
 
   TlsHistogramSharedPtr* tls_histogram = nullptr;
   if (!shutting_down_ && tls_cache_) {
-    tls_histogram = &tls_cache_->get().tls_histogram_cache_[id];
+    tls_histogram = &(tlsCache().tls_histogram_cache_[id]);
     if (*tls_histogram != nullptr) {
       return **tls_histogram;
     }

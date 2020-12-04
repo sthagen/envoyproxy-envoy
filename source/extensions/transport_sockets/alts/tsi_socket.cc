@@ -149,7 +149,7 @@ Network::PostIoAction TsiSocket::doHandshakeNextDone(NextResultPtr&& next_result
   }
 
   if (raw_read_buffer_.length() > 0) {
-    callbacks_->setReadBufferReady();
+    callbacks_->setTransportSocketIsReadable();
   }
 
   // Try to write raw buffer when next call is done, even this is not in do[Read|Write] stack.
@@ -261,7 +261,6 @@ TsiSocketFactory::createTransportSocket(Network::TransportSocketOptionsSharedPtr
   return std::make_unique<TsiSocket>(handshaker_factory_, handshake_validator_);
 }
 
-bool TsiSocketFactory::isReady() const { return true; }
 } // namespace Alts
 } // namespace TransportSockets
 } // namespace Extensions

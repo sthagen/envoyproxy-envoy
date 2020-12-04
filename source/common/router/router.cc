@@ -329,11 +329,6 @@ void Filter::chargeUpstreamCode(Http::Code code,
 }
 
 Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers, bool end_stream) {
-  // Do a common header check. We make sure that all outgoing requests have all HTTP/2 headers.
-  // These get stripped by HTTP/1 codec where applicable.
-  ASSERT(headers.Method());
-  ASSERT(headers.Host());
-
   downstream_headers_ = &headers;
 
   // Extract debug configuration from filter state. This is used further along to determine whether
@@ -410,7 +405,8 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
                       route_entry_->clusterName());
     };
   }
-  Upstream::ThreadLocalCluster* cluster = config_.cm_.get(route_entry_->clusterName());
+  Upstream::ThreadLocalCluster* cluster =
+      config_.cm_.getThreadLocalCluster(route_entry_->clusterName());
   if (!cluster) {
     config_.stats_.no_cluster_.inc();
     ENVOY_STREAM_LOG(debug, "unknown cluster '{}'", *callbacks_, route_entry_->clusterName());
@@ -1426,7 +1422,7 @@ bool Filter::setupRedirect(const Http::ResponseHeaderMap& headers,
       !callbacks_->decodingBuffer() && // Redirects with body not yet supported.
       location != nullptr &&
       convertRequestHeadersForInternalRedirect(*downstream_headers_, *location) &&
-      callbacks_->recreateStream()) {
+      callbacks_->recreateStream(&headers)) {
     cluster_->stats().upstream_internal_redirect_succeeded_total_.inc();
     return true;
   }

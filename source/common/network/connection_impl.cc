@@ -194,6 +194,19 @@ Connection::State ConnectionImpl::state() const {
 
 void ConnectionImpl::closeConnectionImmediately() { closeSocket(ConnectionEvent::LocalClose); }
 
+void ConnectionImpl::setTransportSocketIsReadable() {
+  // Remember that the transport requested read resumption, in case the resumption event is not
+  // scheduled immediately or is "lost" because read was disabled.
+  transport_wants_read_ = true;
+  // Only schedule a read activation if the connection is not read disabled to avoid spurious
+  // wakeups. When read disabled, the connection will not read from the transport, and limit
+  // dispatch to the current contents of the read buffer if its high-watermark is triggered and
+  // dispatch_buffered_data_ is set.
+  if (read_disable_count_ == 0) {
+    ioHandle().activateFileEvents(Event::FileReadyType::Read);
+  }
+}
+
 bool ConnectionImpl::filterChainWantsData() {
   return read_disable_count_ == 0 ||
          (read_disable_count_ == 1 && read_buffer_.highWatermarkTriggered());
@@ -318,7 +331,7 @@ void ConnectionImpl::readDisable(bool disable) {
                  disable, read_disable_count_, static_cast<int>(state()), read_buffer_.length());
 
   // When we disable reads, we still allow for early close notifications (the equivalent of
-  // EPOLLRDHUP for an epoll backend). For backends that support it, this allows us to apply
+  // `EPOLLRDHUP` for an epoll backend). For backends that support it, this allows us to apply
   // back pressure at the kernel layer, but still get timely notification of a FIN. Note that
   // we are not guaranteed to get notified, so even if the remote has closed, we may not know
   // until we try to write. Further note that currently we optionally don't correctly handle half
@@ -358,23 +371,25 @@ void ConnectionImpl::readDisable(bool disable) {
     }
 
     if (filterChainWantsData() && (read_buffer_.length() > 0 || transport_wants_read_)) {
-      // If the read_buffer_ is not empty or transport_wants_read_ is true, the connection may be
-      // able to process additional bytes even if there is no data in the kernel to kick off the
-      // filter chain. Alternately if the read buffer has data the fd could be read disabled. To
-      // handle these cases, fake an event to make sure the buffered data in the read buffer or in
-      // transport socket internal buffers gets processed regardless and ensure that we dispatch it
-      // via onRead.
-
       // Sanity check: resumption with read_disable_count_ > 0 should only happen if the read
       // buffer's high watermark has triggered.
       ASSERT(read_buffer_.length() > 0 || read_disable_count_ == 0);
+
+      // If the read_buffer_ is not empty or transport_wants_read_ is true, the connection may be
+      // able to process additional bytes even if there is no data in the kernel to kick off the
+      // filter chain. Alternately the connection may need read resumption while read disabled and
+      // not registered for read events because the read buffer's high-watermark has triggered. To
+      // handle these cases, directly schedule a fake read event to make sure the buffered data in
+      // the read buffer or in transport socket internal buffers gets processed regardless and
+      // ensure that we dispatch it via onRead.
       dispatch_buffered_data_ = true;
-      setReadBufferReady();
+      ioHandle().activateFileEvents(Event::FileReadyType::Read);
     }
   }
 }
 
 void ConnectionImpl::raiseEvent(ConnectionEvent event) {
+  ENVOY_CONN_LOG(trace, "raising connection event {}", *this, event);
   ConnectionImplBase::raiseConnectionEvent(event);
   // We may have pending data in the write buffer on transport handshake
   // completion, which may also have completed in the context of onReadReady(),
@@ -559,8 +574,9 @@ void ConnectionImpl::onReadReady() {
   ASSERT(!connecting_);
 
   // We get here while read disabled in two ways.
-  // 1) There was a call to setReadBufferReady(), for example if a raw buffer socket ceded due to
-  //    shouldDrainReadBuffer(). In this case we defer the event until the socket is read enabled.
+  // 1) There was a call to setTransportSocketIsReadable(), for example if a raw buffer socket ceded
+  //    due to shouldDrainReadBuffer(). In this case we defer the event until the socket is read
+  //    enabled.
   // 2) The consumer of connection data called readDisable(true), and instead of reading from the
   //    socket we simply need to dispatch already read data.
   if (read_disable_count_ != 0) {
@@ -818,7 +834,7 @@ void ClientConnectionImpl::connect() {
     ASSERT(SOCKET_FAILURE(result.rc_));
 #ifdef WIN32
     // winsock2 connect returns EWOULDBLOCK if the socket is non-blocking and the connection
-    // cannot be completed immediately. We do not check for EINPROGRESS as that error is for
+    // cannot be completed immediately. We do not check for `EINPROGRESS` as that error is for
     // blocking operations.
     if (result.errno_ == SOCKET_ERROR_AGAIN) {
 #else
