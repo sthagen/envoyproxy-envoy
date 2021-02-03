@@ -178,8 +178,8 @@ void BaseIntegrationTest::createEnvoy() {
       ProtobufWkt::Any* resource = lds.add_resources();
       resource->PackFrom(listener);
     }
-    TestEnvironment::writeStringToFileForTest(lds_path, MessageUtil::getJsonStringFromMessage(lds),
-                                              true);
+    TestEnvironment::writeStringToFileForTest(
+        lds_path, MessageUtil::getJsonStringFromMessageOrDie(lds), true);
 
     // Now that the listeners have been written to the lds file, remove them from static resources
     // or they will not be reloadable.
@@ -276,7 +276,7 @@ void BaseIntegrationTest::registerTestServerPorts(const std::vector<std::string>
       registerPort(*port_it, listen_addr->ip()->port());
     }
   }
-  const auto admin_addr = test_server_->server().admin().socket().localAddress();
+  const auto admin_addr = test_server_->server().admin().socket().addressProvider().localAddress();
   if (admin_addr->type() == Network::Address::Type::Ip) {
     registerPort("admin", admin_addr->ip()->port());
   }
