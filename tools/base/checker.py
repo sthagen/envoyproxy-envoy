@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import os
 from functools import cached_property
 from typing import Sequence, Tuple, Type
@@ -195,7 +196,7 @@ class Checker(runner.Runner):
             self.summary.print_summary()
         return 1 if self.has_failed else 0
 
-    def run_checks(self) -> int:
+    def run(self) -> int:
         """Run all configured checks and return the sum of their error counts"""
         checks = self.get_checks()
         self.on_checks_begin()
@@ -222,11 +223,12 @@ class Checker(runner.Runner):
             self.log.warning("\n".join(warnings))
 
 
-class ForkingChecker(Checker):
+class ForkingChecker(runner.ForkingRunner, Checker):
+    pass
 
-    @cached_property
-    def fork(self):
-        return runner.ForkingAdapter(self)
+
+class BazelChecker(runner.BazelRunner, Checker):
+    pass
 
 
 class CheckerSummary(object):
@@ -274,3 +276,28 @@ class CheckerSummary(object):
         if lines:
             section += lines
         return section
+
+
+class AsyncChecker(Checker):
+    """Async version of the Checker class for use with asyncio"""
+
+    async def _run(self) -> int:
+        checks = self.get_checks()
+        await self.on_checks_begin()
+        for check in checks:
+            self.log.info(f"[CHECKS:{self.name}] {check}")
+            await getattr(self, f"check_{check}")()
+            await self.on_check_run(check)
+        return await self.on_checks_complete()
+
+    def run(self) -> int:
+        return asyncio.get_event_loop().run_until_complete(self._run())
+
+    async def on_check_run(self, check: str) -> None:
+        pass
+
+    async def on_checks_begin(self) -> None:
+        pass
+
+    async def on_checks_complete(self) -> int:
+        return super().on_checks_complete()

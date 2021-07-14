@@ -1,11 +1,12 @@
-#include "common/http/match_wrapper/config.h"
+#include "source/common/http/match_wrapper/config.h"
 
 #include "envoy/http/filter.h"
 #include "envoy/matcher/matcher.h"
 #include "envoy/registry/registry.h"
 
-#include "common/config/utility.h"
-#include "common/matcher/matcher.h"
+#include "source/common/config/utility.h"
+#include "source/common/http/matching/data_impl.h"
+#include "source/common/matcher/matcher.h"
 
 #include "absl/status/status.h"
 
@@ -26,8 +27,9 @@ public:
       data_input_allowlist_ = requirements.data_input_allow_list().type_url();
     }
   }
-  absl::Status performDataInputValidation(const Matcher::DataInput<Envoy::Http::HttpMatchingData>&,
-                                          absl::string_view type_url) override {
+  absl::Status
+  performDataInputValidation(const Matcher::DataInputFactory<Envoy::Http::HttpMatchingData>&,
+                             absl::string_view type_url) override {
     if (!data_input_allowlist_) {
       return absl::OkStatus();
     }
@@ -87,6 +89,10 @@ Envoy::Http::FilterFactoryCb MatchWrapperConfig::createFilterFactoryFromProtoTyp
     const envoy::extensions::common::matching::v3::ExtensionWithMatcher& proto_config,
     const std::string& prefix, Server::Configuration::FactoryContext& context) {
 
+  if (!Runtime::runtimeFeatureEnabled("envoy.reloadable_features.experimental_matching_api")) {
+    throw EnvoyException("Experimental matching API is not enabled");
+  }
+
   ASSERT(proto_config.has_extension_config());
   auto& factory =
       Config::Utility::getAndCheckFactory<Server::Configuration::NamedHttpFilterConfigFactory>(
@@ -98,9 +104,11 @@ Envoy::Http::FilterFactoryCb MatchWrapperConfig::createFilterFactoryFromProtoTyp
 
   MatchTreeValidationVisitor validation_visitor(*factory.matchingRequirements());
 
-  auto match_tree =
-      Matcher::MatchTreeFactory<Envoy::Http::HttpMatchingData>(prefix, context, validation_visitor)
-          .create(proto_config.matcher());
+  Envoy::Http::Matching::HttpFilterActionContext action_context{prefix, context};
+  auto match_tree = Matcher::MatchTreeFactory<Envoy::Http::HttpMatchingData,
+                                              Envoy::Http::Matching::HttpFilterActionContext>(
+                        action_context, context.getServerFactoryContext(), validation_visitor)
+                        .create(proto_config.matcher());
 
   if (!validation_visitor.errors().empty()) {
     // TODO(snowp): Output all violations.
@@ -109,7 +117,7 @@ Envoy::Http::FilterFactoryCb MatchWrapperConfig::createFilterFactoryFromProtoTyp
   }
 
   return [filter_factory, match_tree](Envoy::Http::FilterChainFactoryCallbacks& callbacks) -> void {
-    DelegatingFactoryCallbacks delegated_callbacks(callbacks, match_tree);
+    DelegatingFactoryCallbacks delegated_callbacks(callbacks, match_tree());
 
     return filter_factory(delegated_callbacks);
   };

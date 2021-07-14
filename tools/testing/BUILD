@@ -24,6 +24,7 @@ envoy_py_binary(
     ],
     deps = [
         requirement("pytest"),
+        requirement("pytest-asyncio"),
         requirement("pytest-cov"),
     ],
 )
@@ -38,5 +39,13 @@ envoy_py_binary(
     ],
     deps = [
         requirement("coverage"),
+    ],
+)
+
+envoy_py_binary(
+    name = "tools.testing.all_pytests",
+    deps = [
+        "//tools/base:checker",
+        "//tools/base:utils",
     ],
 )
