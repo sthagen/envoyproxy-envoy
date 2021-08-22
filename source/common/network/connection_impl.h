@@ -22,6 +22,8 @@ class TestPauseFilter;
 
 namespace Network {
 
+class HappyEyeballsConnectionImpl;
+
 /**
  * Utility functions for the connection implementation.
  */
@@ -166,8 +168,10 @@ protected:
   bool connecting_{false};
   ConnectionEvent immediate_error_event_{ConnectionEvent::Connected};
   bool bind_error_{false};
+  std::string failure_reason_;
 
 private:
+  friend class HappyEyeballsConnectionImpl;
   friend class Envoy::RandomPauseFilter;
   friend class Envoy::TestPauseFilter;
 
@@ -217,7 +221,8 @@ public:
                        bool connected);
 
   // ServerConnection impl
-  void setTransportSocketConnectTimeout(std::chrono::milliseconds timeout) override;
+  void setTransportSocketConnectTimeout(std::chrono::milliseconds timeout,
+                                        Stats::Counter& timeout_stat) override;
   void raiseEvent(ConnectionEvent event) override;
 
 private:
@@ -227,6 +232,7 @@ private:
   // Implements a timeout for the transport socket signaling connection. The timer is enabled by a
   // call to setTransportSocketConnectTimeout and is reset when the connection is established.
   Event::TimerPtr transport_socket_connect_timer_;
+  Stats::Counter* transport_socket_timeout_stat_;
 };
 
 /**

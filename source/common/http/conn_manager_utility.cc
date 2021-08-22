@@ -100,6 +100,18 @@ ConnectionManagerUtility::MutateRequestHeadersResult ConnectionManagerUtility::m
   request_headers.removeProxyConnection();
   request_headers.removeTransferEncoding();
 
+  // Sanitize referer field if exists.
+  if (Runtime::runtimeFeatureEnabled("envoy.reloadable_features.sanitize_http_header_referer")) {
+    auto result = request_headers.get(Http::CustomHeaders::get().Referer);
+    if (!result.empty()) {
+      Utility::Url url;
+      if (result.size() > 1 || !url.initialize(result[0]->value().getStringView(), false)) {
+        // A request header shouldn't have multiple referer field.
+        request_headers.remove(Http::CustomHeaders::get().Referer);
+      }
+    }
+  }
+
   // If we are "using remote address" this means that we create/append to XFF with our immediate
   // peer. Cases where we don't "use remote address" include trusted double proxy where we expect
   // our peer to have already properly set XFF, etc.
@@ -165,10 +177,12 @@ ConnectionManagerUtility::MutateRequestHeadersResult ConnectionManagerUtility::m
     request_headers.setReferenceForwardedProto(connection.ssl() ? Headers::get().SchemeValues.Https
                                                                 : Headers::get().SchemeValues.Http);
   }
+
   if (config.schemeToSet().has_value()) {
     request_headers.setScheme(config.schemeToSet().value());
     request_headers.setForwardedProto(config.schemeToSet().value());
   }
+
   // If :scheme is not set, sets :scheme based on X-Forwarded-Proto if a valid scheme,
   // else encryption level.
   // X-Forwarded-Proto and :scheme may still differ if different values are sent from downstream.

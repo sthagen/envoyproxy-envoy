@@ -11,7 +11,7 @@ import "envoy/config/core/v4alpha/config_source.proto";
 import "envoy/config/core/v4alpha/extension.proto";
 import "envoy/config/core/v4alpha/health_check.proto";
 import "envoy/config/core/v4alpha/resolver.proto";
-import "envoy/config/endpoint/v3/endpoint.proto";
+import "envoy/config/endpoint/v4alpha/endpoint.proto";
 import "envoy/type/v3/percent.proto";
 
 import "google/protobuf/any.proto";
@@ -110,7 +110,7 @@ message Cluster {
     // this option or not.
     CLUSTER_PROVIDED = 6;
 
-    // [#not-implemented-hide:] Use the new :ref:`load_balancing_policy
+    // Use the new :ref:`load_balancing_policy
     // <envoy_v3_api_field_config.cluster.v3.Cluster.load_balancing_policy>` field to determine the LB policy.
     // [#next-major-version: In the v3 API, we should consider deprecating the lb_policy field
     // and instead using the new load_balancing_policy field as the one and only mechanism for
@@ -631,11 +631,12 @@ message Cluster {
         [(validate.rules).double = {lte: 3.0 gte: 1.0}];
   }
 
-  reserved 12, 15, 7, 11, 35, 46, 29, 13, 14, 18, 45, 26, 47;
+  reserved 12, 15, 7, 11, 35, 9, 46, 29, 13, 14, 18, 45, 26, 47;
 
-  reserved "hosts", "tls_context", "extension_protocol_options", "upstream_http_protocol_options",
-      "common_http_protocol_options", "http_protocol_options", "http2_protocol_options",
-      "dns_resolvers", "use_tcp_for_dns_lookups", "protocol_selection", "track_timeout_budgets";
+  reserved "hosts", "tls_context", "extension_protocol_options", "max_requests_per_connection",
+      "upstream_http_protocol_options", "common_http_protocol_options", "http_protocol_options",
+      "http2_protocol_options", "dns_resolvers", "use_tcp_for_dns_lookups", "protocol_selection",
+      "track_timeout_budgets";
 
   // Configuration to use different transport sockets for different endpoints.
   // The entry of *envoy.transport_socket_match* in the
@@ -729,8 +730,7 @@ message Cluster {
 
   // The :ref:`load balancer type <arch_overview_load_balancing_types>` to use
   // when picking a host in the cluster.
-  // [#comment:TODO: Remove enum constraint :ref:`LOAD_BALANCING_POLICY_CONFIG<envoy_v3_api_enum_value_config.cluster.v3.Cluster.LbPolicy.LOAD_BALANCING_POLICY_CONFIG>` when implemented.]
-  LbPolicy lb_policy = 6 [(validate.rules).enum = {defined_only: true not_in: 7}];
+  LbPolicy lb_policy = 6 [(validate.rules).enum = {defined_only: true}];
 
   // Setting this is required for specifying members of
   // :ref:`STATIC<envoy_v3_api_enum_value_config.cluster.v3.Cluster.DiscoveryType.STATIC>`,
@@ -743,19 +743,13 @@ message Cluster {
   //   Setting this allows non-EDS cluster types to contain embedded EDS equivalent
   //   :ref:`endpoint assignments<envoy_v3_api_msg_config.endpoint.v3.ClusterLoadAssignment>`.
   //
-  endpoint.v3.ClusterLoadAssignment load_assignment = 33;
+  endpoint.v4alpha.ClusterLoadAssignment load_assignment = 33;
 
   // Optional :ref:`active health checking <arch_overview_health_checking>`
   // configuration for the cluster. If no
   // configuration is specified no health checking will be done and all cluster
   // members will be considered healthy at all times.
   repeated core.v4alpha.HealthCheck health_checks = 8;
-
-  // Optional maximum requests for a single upstream connection. This parameter
-  // is respected by both the HTTP/1.1 and HTTP/2 connection pool
-  // implementations. If not specified, there is no limit. Setting this
-  // parameter to 1 will effectively disable keep alive.
-  google.protobuf.UInt32Value max_requests_per_connection = 9;
 
   // Optional :ref:`circuit breaking <arch_overview_circuit_break>` for the cluster.
   CircuitBreakers circuit_breakers = 10;
@@ -921,7 +915,7 @@ message Cluster {
   // servers of this cluster.
   repeated Filter filters = 40;
 
-  // [#not-implemented-hide:] New mechanism for LB policy configuration. Used only if the
+  // New mechanism for LB policy configuration. Used only if the
   // :ref:`lb_policy<envoy_v3_api_field_config.cluster.v3.Cluster.lb_policy>` field has the value
   // :ref:`LOAD_BALANCING_POLICY_CONFIG<envoy_v3_api_enum_value_config.cluster.v3.Cluster.LbPolicy.LOAD_BALANCING_POLICY_CONFIG>`.
   LoadBalancingPolicy load_balancing_policy = 41;
@@ -973,7 +967,7 @@ message Cluster {
   bool connection_pool_per_downstream_connection = 51;
 }
 
-// [#not-implemented-hide:] Extensible load balancing policy configuration.
+// Extensible load balancing policy configuration.
 //
 // Every LB policy defined via this mechanism will be identified via a unique name using reverse
 // DNS notation. If the policy needs configuration parameters, it must define a message for its
@@ -1000,14 +994,11 @@ message LoadBalancingPolicy {
     option (udpa.annotations.versioning).previous_message_type =
         "envoy.config.cluster.v3.LoadBalancingPolicy.Policy";
 
-    reserved 2;
+    reserved 2, 1, 3;
 
-    reserved "config";
+    reserved "config", "name", "typed_config";
 
-    // Required. The name of the LB policy.
-    string name = 1;
-
-    google.protobuf.Any typed_config = 3;
+    core.v4alpha.TypedExtensionConfig typed_extension_config = 4;
   }
 
   // Each client will iterate over the list in order and stop at the first policy that it
