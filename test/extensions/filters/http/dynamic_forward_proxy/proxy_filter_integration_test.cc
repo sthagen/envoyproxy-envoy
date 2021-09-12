@@ -41,7 +41,7 @@ typed_config:
 )EOF",
                                            Network::Test::ipVersionToDnsFamily(GetParam()),
                                            max_hosts, max_pending_requests, filename);
-    config_helper_.addFilter(filter);
+    config_helper_.prependFilter(filter);
 
     config_helper_.addConfigModifier([this](envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
       // Switch predefined cluster_0 to CDS filesystem sourcing.
@@ -61,6 +61,12 @@ typed_config:
         Protobuf::util::TimeUtil::MillisecondsToDuration(100));
     cluster_.set_name("cluster_0");
     cluster_.set_lb_policy(envoy::config::cluster::v3::Cluster::CLUSTER_PROVIDED);
+
+    ConfigHelper::HttpProtocolOptions protocol_options;
+    protocol_options.mutable_upstream_http_protocol_options()->set_auto_sni(true);
+    protocol_options.mutable_upstream_http_protocol_options()->set_auto_san_validation(true);
+    protocol_options.mutable_explicit_http_config()->mutable_http_protocol_options();
+    ConfigHelper::setProtocolOptions(cluster_, protocol_options);
 
     if (upstream_tls_) {
       envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext tls_context;
