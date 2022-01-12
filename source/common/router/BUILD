@@ -64,6 +64,7 @@ envoy_cc_library(
         "//source/common/http/matching:data_impl_lib",
         "//source/common/matcher:matcher_lib",
         "//source/common/protobuf:utility_lib",
+        "//source/common/tracing:custom_tag_lib",
         "//source/common/tracing:http_tracer_lib",
         "//source/common/upstream:retry_factory_lib",
         "//source/extensions/filters/http/common:utility_lib",
@@ -102,6 +103,7 @@ envoy_cc_library(
         "//envoy/router:context_interface",
         "//envoy/router:router_interface",
         "//envoy/stats:stats_macros",
+        "//source/common/config:utility_lib",
     ],
 )
 
@@ -292,6 +294,7 @@ envoy_cc_library(
         "//envoy/http:codes_interface",
         "//envoy/http:conn_pool_interface",
         "//envoy/http:filter_interface",
+        "//envoy/http:stateful_session_interface",
         "//envoy/local_info:local_info_interface",
         "//envoy/router:shadow_writer_interface",
         "//envoy/runtime:runtime_interface",
@@ -312,6 +315,7 @@ envoy_cc_library(
         "//source/common/common:minimal_logger_lib",
         "//source/common/common:scope_tracker",
         "//source/common/common:utility_lib",
+        "//source/common/config:utility_lib",
         "//source/common/grpc:common_lib",
         "//source/common/http:codes_lib",
         "//source/common/http:header_map_lib",
