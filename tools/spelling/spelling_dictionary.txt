@@ -21,10 +21,12 @@ ASSERTs
 AST
 AWS
 BACKTRACE
+BEL
 BBR
 BSON
 BPF
 Repick
+TRA
 btree
 CAS
 CB
@@ -33,20 +35,32 @@ CDN
 CDS
 CEL
 CWND
+DLE
 DSR
 DSS
 EBADF
+ENDIF
 ENOTCONN
+ENQ
+EOT
 EPIPE
+ESC
+ETB
+ETX
+FS
 HEXDIG
 HEXDIGIT
 LRU
+NAK
 OWS
 Preconnecting
 RCVBUF
 RTCP
 RTP
+SOH
+SPC
 STATNAME
+STX
 SkyWalking
 TIDs
 Timedout
@@ -133,6 +147,7 @@ FREEBIND
 FUZZER
 FUZZERS
 dereferencing
+differentially
 dnsresolvers
 guarddog
 GC
@@ -161,6 +176,7 @@ HTML
 HTTP
 HTTPS
 HV
+Hyperscan
 IAM
 IANA
 IDL
@@ -241,6 +257,7 @@ Oauth
 OCSP
 OD
 ODCDS
+oghttp
 OID
 OK
 OOM
@@ -255,6 +272,7 @@ OVFL
 PAYLOADLEN
 PB
 PCC
+PCRE
 PEERCRED
 PEM
 PERF
@@ -299,6 +317,7 @@ RTDS
 RTOS
 RTTI
 RUNDIR
+RVCM
 RW
 RX
 RXQ
@@ -320,6 +339,7 @@ SIGINT
 SIGPIPE
 SIGSEGV
 SIGTERM
+SIO
 SMTP
 SNI
 SOTW
@@ -333,11 +353,13 @@ SRCDIR
 SRDS
 SRV
 SS
+SSD
 SSL
 STDSTRING
 STL
 STRLEN
 STS
+SUBCOMMAND
 SVG
 SVID
 SXG
@@ -447,6 +469,7 @@ authlen
 authn
 auths
 authz
+automata
 autoscale
 backend
 backends
@@ -761,6 +784,8 @@ intra
 ints
 invariance
 invoker
+iov
+iovcnt
 iovec
 iovecs
 ips
@@ -1076,6 +1101,7 @@ retriable
 retriggers
 revalidated
 revalidation
+rfield
 rmdir
 rocketmq
 rewriter
@@ -1093,6 +1119,7 @@ rver
 rxhash
 sandboxed
 sanitization
+sanitizations
 sanitizer
 satisfiable
 scalability
@@ -1174,6 +1201,7 @@ subnets
 suboptimal
 subsecond
 subseconds
+subsegment
 subsequence
 subsetting
 substr
@@ -1233,6 +1261,7 @@ transcoded
 transcoder
 transcoding
 transferral
+trds
 triaged
 trie
 tuple
@@ -1253,6 +1282,7 @@ underflowing
 unfreed
 unicast
 unicode
+unicodes
 unindexed
 uninstantiated
 uniq
@@ -1319,6 +1349,7 @@ zag
 zig
 zipkin
 zlib
+zstd
 OBQ
 SemVer
 SCM
@@ -1332,3 +1363,8 @@ transid
 routable
 vhosts
 infos
+ElastiCache
+pinterest
+NSS
+SSLKEYLOGFILE
+

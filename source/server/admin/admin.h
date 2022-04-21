@@ -84,8 +84,9 @@ public:
   // The prefix must start with "/" and contain at least one additional character.
   bool addHandler(const std::string& prefix, const std::string& help_text, HandlerCb callback,
                   bool removable, bool mutates_server_state) override;
-  bool addChunkedHandler(const std::string& prefix, const std::string& help_text,
-                         GenHandlerCb callback, bool removable, bool mutates_server_state) override;
+  bool addStreamingHandler(const std::string& prefix, const std::string& help_text,
+                           GenRequestFn callback, bool removable,
+                           bool mutates_server_state) override;
   bool removeHandler(const std::string& prefix) override;
   ConfigTracker& getConfigTracker() override;
 
@@ -200,17 +201,10 @@ public:
                      Http::ResponseHeaderMap& response_headers, std::string& body) override;
   void closeSocket();
   void addListenerToHandler(Network::ConnectionHandler* handler) override;
-  Server::Instance& server() { return server_; }
 
-  GenHandlerCb createHandlerFunction() {
-    return [this](absl::string_view path_and_query, AdminStream& admin_stream) -> HandlerPtr {
-      return findHandler(path_and_query, admin_stream);
-    };
-  }
-  AdminFilter::AdminServerCallbackFunction createCallbackFunction() {
-    return [this](absl::string_view path_and_query, Http::ResponseHeaderMap& response_headers,
-                  Buffer::OwnedImpl& response, AdminFilter& filter) -> Http::Code {
-      return runCallback(path_and_query, response_headers, response, filter);
+  GenRequestFn createRequestFunction() {
+    return [this](absl::string_view path_and_query, AdminStream& admin_stream) -> RequestPtr {
+      return makeRequest(path_and_query, admin_stream);
     };
   }
   uint64_t maxRequestsPerConnection() const override { return 0; }
@@ -218,35 +212,52 @@ public:
     return proxy_status_config_.get();
   }
 
-  /**
-   * Makes a chunked handler for static text.
-   * @param resposne_text the text to populate response with
-   * @param code the Http::Code for the response
-   * @return the handler
-   */
-  static HandlerPtr makeStaticTextHandler(absl::string_view response_text, Http::Code code);
-
 private:
+  friend class AdminTestingPeer;
+
   /**
    * Individual admin handler including prefix, help text, and callback.
    */
   struct UrlHandler {
     const std::string prefix_;
     const std::string help_text_;
-    const GenHandlerCb handler_;
+    const GenRequestFn handler_;
     const bool removable_;
     const bool mutates_server_state_;
   };
 
   /**
-   * Creates a Handler instance given a request.
+   * Creates a Request from a url.
    */
-  HandlerPtr findHandler(absl::string_view path_and_query, AdminStream& admin_stream);
+  RequestPtr makeRequest(absl::string_view path_and_query, AdminStream& admin_stream);
+
   /**
    * Creates a UrlHandler structure from a non-chunked callback.
    */
   UrlHandler makeHandler(const std::string& prefix, const std::string& help_text,
                          HandlerCb callback, bool removable, bool mutates_state);
+
+  /**
+   * Creates a URL prefix bound to chunked handler. Handler is expected to
+   * supply a method makeRequest(absl::string_view, AdminStream&).
+   *
+   * @param prefix the prefix to register
+   * @param help_text a help text ot display in a table in the admin home page
+   * @param handler the Handler object for the admin subsystem, supplying makeContext().
+   * @param removeable indicates whether the handler can be removed after being added
+   * @param mutates_state indicates whether the handler will mutate state and therefore
+   *                      must be accessed via HTTP POST rather than GET.
+   * @return the UrlHandler.
+   */
+  template <class Handler>
+  UrlHandler makeStreamingHandler(const std::string& prefix, const std::string& help_text,
+                                  Handler& handler, bool removable, bool mutates_state) {
+    return {prefix, help_text,
+            [&handler](absl::string_view path, AdminStream& admin_stream) -> Admin::RequestPtr {
+              return handler.makeRequest(path, admin_stream);
+            },
+            removable, mutates_state};
+  }
 
   /**
    * Implementation of RouteConfigProvider that returns a static null route config.
@@ -295,8 +306,8 @@ private:
    * OverloadManager keeps the admin interface accessible even when the proxy is overloaded.
    */
   struct NullOverloadManager : public OverloadManager {
-    struct NullThreadLocalOverloadState : public ThreadLocalOverloadState {
-      NullThreadLocalOverloadState(Event::Dispatcher& dispatcher) : dispatcher_(dispatcher) {}
+    struct OverloadState : public ThreadLocalOverloadState {
+      OverloadState(Event::Dispatcher& dispatcher) : dispatcher_(dispatcher) {}
       const OverloadActionState& getState(const std::string&) override { return inactive_; }
       bool tryAllocateResource(OverloadProactiveResourceName, int64_t) override { return false; }
       bool tryDeallocateResource(OverloadProactiveResourceName, int64_t) override { return false; }
@@ -310,12 +321,12 @@ private:
 
     void start() override {
       tls_->set([](Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr {
-        return std::make_shared<NullThreadLocalOverloadState>(dispatcher);
+        return std::make_shared<OverloadState>(dispatcher);
       });
     }
 
     ThreadLocalOverloadState& getThreadLocalOverloadState() override {
-      return tls_->getTyped<NullThreadLocalOverloadState>();
+      return tls_->getTyped<OverloadState>();
     }
 
     Event::ScaledRangeTimerManagerFactory scaledTimerFactory() override { return nullptr; }
