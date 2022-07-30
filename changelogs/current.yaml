@@ -9,6 +9,9 @@ behavior_changes:
 
 minor_behavior_changes:
 # *Changes that may cause incompatibilities for some users, but should not for most*
+- area: prometheus_stats
+  change: |
+    removed blank line for being compatible with OpenMetrics.
 
 bug_fixes:
 # *Changes expected to improve the state of the world and are unlikely to have negative effects*
@@ -59,5 +62,8 @@ new_features:
 - area: upstream
   change: |
     added a filter state object to control the destination address in :ref:`ORIGINAL_DST clusters <arch_overview_load_balancing_types_original_destination_request_header_filter_state>`.
+- area: access_log
+  change: |
+    updated command operator ``%GRPC_STATUS%`` to suppoprt the snake case.
 
 deprecated:
