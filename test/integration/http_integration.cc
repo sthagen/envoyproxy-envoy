@@ -250,7 +250,7 @@ Network::ClientConnectionPtr HttpIntegrationTest::makeClientConnectionWithOption
   return Quic::createQuicNetworkConnection(
       *quic_connection_persistent_info_, quic_transport_socket_factory_ref.getCryptoConfig(),
       quic::QuicServerId(
-          quic_transport_socket_factory_ref.clientContextConfig().serverNameIndication(),
+          quic_transport_socket_factory_ref.clientContextConfig()->serverNameIndication(),
           static_cast<uint16_t>(port)),
       *dispatcher_, server_addr, local_addr, quic_stat_names_, {}, stats_store_, options, nullptr,
       connection_id_generator_);
@@ -315,7 +315,7 @@ HttpIntegrationTest::HttpIntegrationTest(Http::CodecType downstream_protocol,
           downstream_protocol,
           [version](int) {
             return Network::Utility::parseInternetAddress(
-                Network::Test::getAnyAddressString(version), 0);
+                Network::Test::getLoopbackAddressString(version), 0);
           },
           version, config) {}
 
