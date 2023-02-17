@@ -41,9 +41,7 @@ public class EnvoyConfiguration {
   public final Boolean enableDrainPostDnsRefresh;
   public final Boolean enableHttp3;
   public final Boolean enableGzipDecompression;
-  public final Boolean enableGzipCompression;
   public final Boolean enableBrotliDecompression;
-  public final Boolean enableBrotliCompression;
   public final Boolean enableSocketTagging;
   public final Boolean enableHappyEyeballs;
   public final Boolean enableInterfaceBinding;
@@ -64,6 +62,7 @@ public class EnvoyConfiguration {
   public final List<String> statSinks;
   public final Boolean enablePlatformCertificatesValidation;
   public final Boolean enableSkipDNSLookupForProxiedRequests;
+  public final Boolean useLegacyBuilder;
 
   private static final Pattern UNRESOLVED_KEY_PATTERN = Pattern.compile("\\{\\{ (.+) \\}\\}");
 
@@ -96,11 +95,9 @@ public class EnvoyConfiguration {
    *     HTTP/3 (QUIC).
    * @param enableGzipDecompression                       whether to enable response gzip
    *     decompression.
-   * @param enableGzipCompression                         whether to enable request gzip
    *     compression.
    * @param enableBrotliDecompression                     whether to enable response brotli
    *     decompression.
-   * @param enableBrotliCompression                       whether to enable request brotli
    *     compression.
    * @param enableSocketTagging                           whether to enable socket tagging.
    * @param enableHappyEyeballs                           whether to enable RFC 6555 handling for
@@ -127,14 +124,16 @@ public class EnvoyConfiguration {
    * @param keyValueStores                                platform key-value store implementations.
    * @param enableSkipDNSLookupForProxiedRequests         whether to skip waiting on DNS response
    *     for proxied requests.
+   * @param enablePlatformCertificatesValidation          whether to use the platform verifier.
+   * @param useLegacyBuilder                              whether the string-based legacy mode
+   *     should be used to build the engine.
    */
   public EnvoyConfiguration(
       boolean adminInterfaceEnabled, String grpcStatsDomain, int connectTimeoutSeconds,
       int dnsRefreshSeconds, int dnsFailureRefreshSecondsBase, int dnsFailureRefreshSecondsMax,
       int dnsQueryTimeoutSeconds, int dnsMinRefreshSeconds, List<String> dnsPreresolveHostnames,
       boolean enableDNSCache, int dnsCacheSaveIntervalSeconds, boolean enableDrainPostDnsRefresh,
-      boolean enableHttp3, boolean enableGzipDecompression, boolean enableGzipCompression,
-      boolean enableBrotliDecompression, boolean enableBrotliCompression,
+      boolean enableHttp3, boolean enableGzipDecompression, boolean enableBrotliDecompression,
       boolean enableSocketTagging, boolean enableHappyEyeballs, boolean enableInterfaceBinding,
       int h2ConnectionKeepaliveIdleIntervalMilliseconds, int h2ConnectionKeepaliveTimeoutSeconds,
       int maxConnectionsPerHost, int statsFlushSeconds, int streamIdleTimeoutSeconds,
@@ -144,7 +143,8 @@ public class EnvoyConfiguration {
       List<EnvoyHTTPFilterFactory> httpPlatformFilterFactories,
       Map<String, EnvoyStringAccessor> stringAccessors,
       Map<String, EnvoyKeyValueStore> keyValueStores, List<String> statSinks,
-      Boolean enableSkipDNSLookupForProxiedRequests, boolean enablePlatformCertificatesValidation) {
+      Boolean enableSkipDNSLookupForProxiedRequests, boolean enablePlatformCertificatesValidation,
+      boolean useLegacyBuilder) {
     JniLibrary.load();
     this.adminInterfaceEnabled = adminInterfaceEnabled;
     this.grpcStatsDomain = grpcStatsDomain;
@@ -160,9 +160,7 @@ public class EnvoyConfiguration {
     this.enableDrainPostDnsRefresh = enableDrainPostDnsRefresh;
     this.enableHttp3 = enableHttp3;
     this.enableGzipDecompression = enableGzipDecompression;
-    this.enableGzipCompression = enableGzipCompression;
     this.enableBrotliDecompression = enableBrotliDecompression;
-    this.enableBrotliCompression = enableBrotliCompression;
     this.enableSocketTagging = enableSocketTagging;
     this.enableHappyEyeballs = enableHappyEyeballs;
     this.enableInterfaceBinding = enableInterfaceBinding;
@@ -195,7 +193,9 @@ public class EnvoyConfiguration {
     this.statSinks = statSinks;
     this.enablePlatformCertificatesValidation = enablePlatformCertificatesValidation;
     this.enableSkipDNSLookupForProxiedRequests = enableSkipDNSLookupForProxiedRequests;
+    this.useLegacyBuilder = useLegacyBuilder;
   }
+
   /**
    * Creates configuration YAML based on the configuration of the class
    *
@@ -228,20 +228,13 @@ public class EnvoyConfiguration {
       customFiltersBuilder.append(gzipFilterInsert);
     }
 
-    if (enableGzipCompression) {
-      final String gzipFilterInsert = JniLibrary.gzipCompressorConfigInsert();
-      customFiltersBuilder.append(gzipFilterInsert);
-    }
-
     if (enableBrotliDecompression) {
       final String brotliFilterInsert = JniLibrary.brotliDecompressorConfigInsert();
       customFiltersBuilder.append(brotliFilterInsert);
     }
 
-    if (enableBrotliCompression) {
-      final String brotliFilterInsert = JniLibrary.brotliCompressorConfigInsert();
-      customFiltersBuilder.append(brotliFilterInsert);
-    }
+    final String compressorFilterInsert = JniLibrary.compressorConfigInsert();
+    customFiltersBuilder.append(compressorFilterInsert);
 
     if (enableSocketTagging) {
       final String socketTagFilterInsert = JniLibrary.socketTagConfigInsert();
@@ -290,8 +283,9 @@ public class EnvoyConfiguration {
         .append(String.format("- &max_connections_per_host %s\n", maxConnectionsPerHost))
         .append(String.format("- &stream_idle_timeout %ss\n", streamIdleTimeoutSeconds))
         .append(String.format("- &per_try_idle_timeout %ss\n", perTryIdleTimeoutSeconds))
-        .append(String.format("- &metadata { device_os: %s, app_version: %s, app_id: %s }\n",
-                              "Android", appVersion, appId))
+        .append(String.format(
+            "- &metadata { device_os: Android, app_version: \"%s\", app_id: \"%s\" }\n", appVersion,
+            appId))
         .append(String.format("- &trust_chain_verification %s\n", trustChainVerification.name()))
         .append(String.format("- &skip_dns_lookup_for_proxied_requests %s\n",
                               enableSkipDNSLookupForProxiedRequests ? "true" : "false"))
@@ -360,18 +354,41 @@ public class EnvoyConfiguration {
             dnsRefreshSeconds, dnsFailureRefreshSecondsBase, dnsFailureRefreshSecondsMax,
             dnsQueryTimeoutSeconds, dnsMinRefreshSeconds, dns_preresolve, enableDNSCache,
             dnsCacheSaveIntervalSeconds, enableDrainPostDnsRefresh, enableHttp3,
-            enableGzipDecompression, enableGzipCompression, enableBrotliDecompression,
-            enableBrotliCompression, enableSocketTagging, enableHappyEyeballs,
-            enableInterfaceBinding, h2ConnectionKeepaliveIdleIntervalMilliseconds,
-            h2ConnectionKeepaliveTimeoutSeconds, maxConnectionsPerHost, statsFlushSeconds,
-            streamIdleTimeoutSeconds, perTryIdleTimeoutSeconds, appVersion, appId,
-            enforceTrustChainVerification, clusters, filter_chain, stats_sinks,
-            enablePlatformCertificatesValidation, enableSkipDNSLookupForProxiedRequests);
+            enableGzipDecompression, enableBrotliDecompression, enableSocketTagging,
+            enableHappyEyeballs, enableInterfaceBinding,
+            h2ConnectionKeepaliveIdleIntervalMilliseconds, h2ConnectionKeepaliveTimeoutSeconds,
+            maxConnectionsPerHost, statsFlushSeconds, streamIdleTimeoutSeconds,
+            perTryIdleTimeoutSeconds, appVersion, appId, enforceTrustChainVerification, clusters,
+            filter_chain, stats_sinks, enablePlatformCertificatesValidation,
+            enableSkipDNSLookupForProxiedRequests);
         break;
       }
     }
 
     return resolvedConfiguration;
+  }
+
+  long createBootstrap() {
+    Boolean enforceTrustChainVerification =
+        trustChainVerification == EnvoyConfiguration.TrustChainVerification.VERIFY_TRUST_CHAIN;
+    List<EnvoyNativeFilterConfig> reverseFilterChain = new ArrayList<>(nativeFilterChain);
+    Collections.reverse(reverseFilterChain);
+
+    byte[][] filter_chain = JniBridgeUtility.toJniBytes(reverseFilterChain);
+    byte[][] clusters = JniBridgeUtility.stringsToJniBytes(virtualClusters);
+    byte[][] stats_sinks = JniBridgeUtility.stringsToJniBytes(statSinks);
+    byte[][] dns_preresolve = JniBridgeUtility.stringsToJniBytes(dnsPreresolveHostnames);
+    return JniLibrary.createBootstrap(
+        grpcStatsDomain, adminInterfaceEnabled, connectTimeoutSeconds, dnsRefreshSeconds,
+        dnsFailureRefreshSecondsBase, dnsFailureRefreshSecondsMax, dnsQueryTimeoutSeconds,
+        dnsMinRefreshSeconds, dns_preresolve, enableDNSCache, dnsCacheSaveIntervalSeconds,
+        enableDrainPostDnsRefresh, enableHttp3, enableGzipDecompression, enableBrotliDecompression,
+        enableSocketTagging, enableHappyEyeballs, enableInterfaceBinding,
+        h2ConnectionKeepaliveIdleIntervalMilliseconds, h2ConnectionKeepaliveTimeoutSeconds,
+        maxConnectionsPerHost, statsFlushSeconds, streamIdleTimeoutSeconds,
+        perTryIdleTimeoutSeconds, appVersion, appId, enforceTrustChainVerification, clusters,
+        filter_chain, stats_sinks, enablePlatformCertificatesValidation,
+        enableSkipDNSLookupForProxiedRequests);
   }
 
   static class ConfigurationException extends RuntimeException {

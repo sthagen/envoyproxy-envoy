@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 
+@class EMODirectResponse;
 @class EnvoyHTTPFilterFactory;
 @class EnvoyNativeFilterConfig;
 @class EnvoyStringAccessor;
@@ -24,14 +25,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL enableHappyEyeballs;
 @property (nonatomic, assign) BOOL enableHttp3;
 @property (nonatomic, assign) BOOL enableGzipDecompression;
-@property (nonatomic, assign) BOOL enableGzipCompression;
 @property (nonatomic, assign) BOOL enableBrotliDecompression;
-@property (nonatomic, assign) BOOL enableBrotliCompression;
 @property (nonatomic, assign) BOOL enableInterfaceBinding;
 @property (nonatomic, assign) BOOL enableDrainPostDnsRefresh;
 @property (nonatomic, assign) BOOL enforceTrustChainVerification;
 @property (nonatomic, assign) BOOL forceIPv6;
 @property (nonatomic, assign) BOOL enablePlatformCertificateValidation;
+@property (nonatomic, assign) BOOL useLegacyBuilder;
 @property (nonatomic, assign) UInt32 h2ConnectionKeepaliveIdleIntervalMilliseconds;
 @property (nonatomic, assign) UInt32 h2ConnectionKeepaliveTimeoutSeconds;
 @property (nonatomic, assign) UInt32 maxConnectionsPerHost;
@@ -43,6 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) NSArray<NSString *> *virtualClusters;
 @property (nonatomic, strong) NSString *directResponseMatchers;
 @property (nonatomic, strong) NSString *directResponses;
+@property (nonatomic, strong) NSArray<EMODirectResponse *> *typedDirectResponses;
 @property (nonatomic, strong) NSArray<EnvoyNativeFilterConfig *> *nativeFilterChain;
 @property (nonatomic, strong) NSArray<EnvoyHTTPFilterFactory *> *httpPlatformFilterFactories;
 @property (nonatomic, strong) NSDictionary<NSString *, EnvoyStringAccessor *> *stringAccessors;
@@ -67,9 +68,7 @@ NS_ASSUME_NONNULL_BEGIN
                               enableHappyEyeballs:(BOOL)enableHappyEyeballs
                                       enableHttp3:(BOOL)enableHttp3
                           enableGzipDecompression:(BOOL)enableGzipDecompression
-                            enableGzipCompression:(BOOL)enableGzipCompression
                         enableBrotliDecompression:(BOOL)enableBrotliDecompression
-                          enableBrotliCompression:(BOOL)enableBrotliCompression
                            enableInterfaceBinding:(BOOL)enableInterfaceBinding
                         enableDrainPostDnsRefresh:(BOOL)enableDrainPostDnsRefresh
                     enforceTrustChainVerification:(BOOL)enforceTrustChainVerification
@@ -87,6 +86,8 @@ NS_ASSUME_NONNULL_BEGIN
                                   virtualClusters:(NSArray<NSString *> *)virtualClusters
                            directResponseMatchers:(NSString *)directResponseMatchers
                                   directResponses:(NSString *)directResponses
+                             typedDirectResponses:
+                                 (NSArray<EMODirectResponse *> *)typedDirectResponses
                                 nativeFilterChain:
                                     (NSArray<EnvoyNativeFilterConfig *> *)nativeFilterChain
                               platformFilterChain:
@@ -99,7 +100,8 @@ NS_ASSUME_NONNULL_BEGIN
                                            keyValueStores
                                        statsSinks:(NSArray<NSString *> *)statsSinks
                  experimentalValidateYAMLCallback:
-                     (nullable void (^)(BOOL))experimentalValidateYAMLCallback;
+                     (nullable void (^)(BOOL))experimentalValidateYAMLCallback
+                                 useLegacyBuilder:(BOOL)useLegacyBuilder;
 
 /**
  Resolves the provided configuration template using properties on this configuration.
