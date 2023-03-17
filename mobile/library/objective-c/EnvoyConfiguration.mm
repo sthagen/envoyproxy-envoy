@@ -176,6 +176,7 @@
   self.nodeRegion = nodeRegion;
   self.nodeZone = nodeZone;
   self.nodeSubZone = nodeSubZone;
+  self.bootstrapPointer = 0;
 
   return self;
 }
@@ -243,10 +244,10 @@
   for (NSString *cluster in self.virtualClusters) {
     builder.addVirtualCluster([cluster toCXXString]);
   }
-  builder.addStatsFlushSeconds(self.statsFlushSeconds);
   builder.enablePlatformCertificatesValidation(true);
   builder.enableDnsCache(self.enableDNSCache, self.dnsCacheSaveIntervalSeconds);
-  builder.addGrpcStatsDomain([self.grpcStatsDomain toCXXString]);
+
+#ifdef ENVOY_MOBILE_STATS_REPORTING
   if (self.statsSinks.count > 0) {
     std::vector<std::string> sinks;
     sinks.reserve(self.statsSinks.count);
@@ -255,13 +256,24 @@
     }
     builder.addStatsSinks(std::move(sinks));
   }
-  builder.setNodeLocality([self.nodeRegion toCXXString], [self.nodeZone toCXXString],
-                          [self.nodeSubZone toCXXString]);
-  builder.setNodeId([self.nodeId toCXXString]);
-  builder.addRtdsLayer([self.rtdsLayerName toCXXString], self.rtdsTimeoutSeconds);
-  builder.setAggregatedDiscoveryService(
-      [self.adsAddress toCXXString], self.adsPort, [self.adsJwtToken toCXXString],
-      self.adsJwtTokenLifetimeSeconds, [self.adsSslRootCerts toCXXString]);
+  builder.addGrpcStatsDomain([self.grpcStatsDomain toCXXString]);
+  builder.addStatsFlushSeconds(self.statsFlushSeconds);
+#endif
+  if (self.nodeRegion != nil) {
+    builder.setNodeLocality([self.nodeRegion toCXXString], [self.nodeZone toCXXString],
+                            [self.nodeSubZone toCXXString]);
+  }
+  if (self.nodeId != nil) {
+    builder.setNodeId([self.nodeId toCXXString]);
+  }
+  if (self.rtdsLayerName != nil) {
+    builder.addRtdsLayer([self.rtdsLayerName toCXXString], self.rtdsTimeoutSeconds);
+  }
+  if (self.adsAddress != nil) {
+    builder.setAggregatedDiscoveryService(
+        [self.adsAddress toCXXString], self.adsPort, [self.adsJwtToken toCXXString],
+        self.adsJwtTokenLifetimeSeconds, [self.adsSslRootCerts toCXXString]);
+  }
 #ifdef ENVOY_ADMIN_FUNCTIONALITY
   builder.enableAdminInterface(self.adminInterfaceEnabled);
 #endif

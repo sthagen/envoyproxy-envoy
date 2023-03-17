@@ -1216,7 +1216,6 @@ void configureBuilder(JNIEnv* env, jstring grpc_stats_domain, jboolean admin_int
                       jstring ads_token, jlong ads_token_lifetime, jstring ads_root_certs,
                       jstring node_id, jstring node_region, jstring node_zone,
                       jstring node_sub_zone, Envoy::Platform::EngineBuilder& builder) {
-  setString(env, grpc_stats_domain, &builder, &EngineBuilder::addGrpcStatsDomain);
   builder.addConnectTimeoutSeconds((connect_timeout_seconds));
   builder.addDnsRefreshSeconds((dns_refresh_seconds));
   builder.addDnsFailureRefreshSeconds((dns_failure_refresh_seconds_base),
@@ -1228,7 +1227,6 @@ void configureBuilder(JNIEnv* env, jstring grpc_stats_domain, jboolean admin_int
   builder.addH2ConnectionKeepaliveIdleIntervalMilliseconds(
       (h2_connection_keepalive_idle_interval_milliseconds));
   builder.addH2ConnectionKeepaliveTimeoutSeconds((h2_connection_keepalive_timeout_seconds));
-  builder.addStatsFlushSeconds((stats_flush_seconds));
 
   setString(env, app_version, &builder, &EngineBuilder::setAppVersion);
   setString(env, app_id, &builder, &EngineBuilder::setAppId);
@@ -1268,17 +1266,34 @@ void configureBuilder(JNIEnv* env, jstring grpc_stats_domain, jboolean admin_int
     builder.addVirtualCluster(cluster);
   }
   std::vector<std::string> sinks = javaObjectArrayToStringVector(env, stat_sinks);
+
+#ifdef ENVOY_MOBILE_STATS_REPORTING
   builder.addStatsSinks(std::move(sinks));
+  builder.addStatsFlushSeconds((stats_flush_seconds));
+  setString(env, grpc_stats_domain, &builder, &EngineBuilder::addGrpcStatsDomain);
+#endif
 
   std::vector<std::string> hostnames = javaObjectArrayToStringVector(env, dns_preresolve_hostnames);
   builder.addDnsPreresolveHostnames(hostnames);
-  builder.addRtdsLayer(getCppString(env, rtds_layer_name), rtds_timeout_seconds);
-  builder.setNodeId(getCppString(env, node_id));
-  builder.setNodeLocality(getCppString(env, node_region), getCppString(env, node_zone),
-                          getCppString(env, node_sub_zone));
-  builder.setAggregatedDiscoveryService(getCppString(env, ads_address), ads_port,
-                                        getCppString(env, ads_token), ads_token_lifetime,
-                                        getCppString(env, ads_root_certs));
+  std::string native_rtds_layer_name = getCppString(env, rtds_layer_name);
+  if (!native_rtds_layer_name.empty()) {
+    builder.addRtdsLayer(native_rtds_layer_name, rtds_timeout_seconds);
+  }
+  std::string native_node_id = getCppString(env, node_id);
+  if (!native_node_id.empty()) {
+    builder.setNodeId(native_node_id);
+  }
+  std::string native_node_region = getCppString(env, node_region);
+  if (!native_node_region.empty()) {
+    builder.setNodeLocality(native_node_region, getCppString(env, node_zone),
+                            getCppString(env, node_sub_zone));
+  }
+  std::string native_ads_address = getCppString(env, ads_address);
+  if (!native_ads_address.empty()) {
+    builder.setAggregatedDiscoveryService(native_ads_address, ads_port,
+                                          getCppString(env, ads_token), ads_token_lifetime,
+                                          getCppString(env, ads_root_certs));
+  }
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_io_envoyproxy_envoymobile_engine_JniLibrary_createBootstrap(
