@@ -280,11 +280,11 @@ static void* jvm_on_headers(const char* method, const Envoy::Types::ManagedEnvoy
   jobject j_status = jni_helper.getEnv()->NewObject(jcls_int.get(), jmid_intInit, 0);
   // Set status to "0" (FilterHeadersStatus::Continue). Signal that the intent
   // is to continue the iteration of the filter chain.
-  jni_helper.getEnv()->SetObjectArrayElement(noopResult, 0, j_status);
+  jni_helper.setObjectArrayElement(noopResult, 0, j_status);
 
   // Since the "on headers" call threw an exception set input headers as output headers.
-  jni_helper.getEnv()->SetObjectArrayElement(
-      noopResult, 1, Envoy::JNI::ToJavaArrayOfObjectArray(jni_helper, headers));
+  jni_helper.setObjectArrayElement(noopResult, 1,
+                                   Envoy::JNI::ToJavaArrayOfObjectArray(jni_helper, headers));
 
   return noopResult;
 }
@@ -1448,8 +1448,8 @@ static void jvm_add_test_root_certificate(const uint8_t* cert, size_t len) {
   Envoy::JNI::JniHelper jni_helper(Envoy::JNI::get_env());
   jclass jcls_AndroidNetworkLibrary =
       Envoy::JNI::find_class("io.envoyproxy.envoymobile.utilities.AndroidNetworkLibrary");
-  jmethodID jmid_addTestRootCertificate = jni_helper.getEnv()->GetStaticMethodID(
-      jcls_AndroidNetworkLibrary, "addTestRootCertificate", "([B)V");
+  jmethodID jmid_addTestRootCertificate =
+      jni_helper.getStaticMethodId(jcls_AndroidNetworkLibrary, "addTestRootCertificate", "([B)V");
 
   jbyteArray cert_array = Envoy::JNI::ToJavaByteArray(jni_helper, cert, len);
   jni_helper.callStaticVoidMethod(jcls_AndroidNetworkLibrary, jmid_addTestRootCertificate,
@@ -1463,8 +1463,8 @@ static void jvm_clear_test_root_certificate() {
   Envoy::JNI::JniHelper jni_helper(Envoy::JNI::get_env());
   jclass jcls_AndroidNetworkLibrary =
       Envoy::JNI::find_class("io.envoyproxy.envoymobile.utilities.AndroidNetworkLibrary");
-  jmethodID jmid_clearTestRootCertificates = jni_helper.getEnv()->GetStaticMethodID(
-      jcls_AndroidNetworkLibrary, "clearTestRootCertificates", "()V");
+  jmethodID jmid_clearTestRootCertificates =
+      jni_helper.getStaticMethodId(jcls_AndroidNetworkLibrary, "clearTestRootCertificates", "()V");
 
   jni_helper.callStaticVoidMethod(jcls_AndroidNetworkLibrary, jmid_clearTestRootCertificates);
   jni_helper.getEnv()->DeleteLocalRef(jcls_AndroidNetworkLibrary);
