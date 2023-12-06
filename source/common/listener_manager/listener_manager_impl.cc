@@ -1,4 +1,4 @@
-#include "source/extensions/listener_managers/listener_manager/listener_manager_impl.h"
+#include "source/common/listener_manager/listener_manager_impl.h"
 
 #include <algorithm>
 
@@ -33,7 +33,7 @@
 #include "source/server/api_listener_impl.h"
 #include "source/server/configuration_impl.h"
 #include "source/server/drain_manager_impl.h"
-#include "source/extensions/listener_managers/listener_manager/filter_chain_manager_impl.h"
+#include "source/common/listener_manager/filter_chain_manager_impl.h"
 #include "source/server/transport_socket_config_impl.h"
 
 namespace Envoy {
@@ -990,7 +990,7 @@ void ListenerManagerImpl::stopListeners(StopListenersType stop_listeners_type,
   stop_listeners_type_ = stop_listeners_type;
   for (Network::ListenerConfig& listener : listeners()) {
     if (stop_listeners_type != StopListenersType::InboundOnly ||
-        listener.direction() == envoy::config::core::v3::INBOUND) {
+        listener.listenerInfo().direction() == envoy::config::core::v3::INBOUND) {
       ENVOY_LOG(debug, "begin stop listener: name={}", listener.name());
       auto existing_warming_listener = getListenerByName(warming_listeners_, listener.name());
       // Destroy a warming listener directly.

@@ -18,9 +18,9 @@
 
 #include "source/common/common/logger.h"
 #include "source/common/init/manager_impl.h"
+#include "source/common/listener_manager/filter_chain_factory_context_callback.h"
 #include "source/common/network/cidr_range.h"
 #include "source/common/network/lc_trie.h"
-#include "source/extensions/listener_managers/listener_manager/filter_chain_factory_context_callback.h"
 #include "source/server/factory_context_impl.h"
 
 #include "absl/container/flat_hash_map.h"
@@ -76,9 +76,7 @@ public:
   OverloadManager& overloadManager() override;
   ThreadLocal::SlotAllocator& threadLocal() override;
   OptRef<Admin> admin() override;
-  const envoy::config::core::v3::Metadata& listenerMetadata() const override;
-  const Envoy::Config::TypedMetadata& listenerTypedMetadata() const override;
-  envoy::config::core::v3::TrafficDirection direction() const override;
+  const Network::ListenerInfo& listenerInfo() const override;
   TimeSource& timeSource() override;
   ProtobufMessage::ValidationVisitor& messageValidationVisitor() override;
   ProtobufMessage::ValidationContext& messageValidationContext() override;
@@ -88,7 +86,6 @@ public:
   Configuration::ServerFactoryContext& serverFactoryContext() const override;
   Configuration::TransportSocketFactoryContext& getTransportSocketFactoryContext() const override;
   Stats::Scope& listenerScope() override;
-  bool isQuicListener() const override;
 
   void startDraining() override { is_draining_.store(true); }
 
