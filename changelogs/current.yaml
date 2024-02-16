@@ -49,6 +49,9 @@ bug_fixes:
 - area: tracers
   change: |
     use unary RPC calls for OpenTelemetry trace exports, rather than client-side streaming connections.
+- area: stateful_session
+  change: |
+    Support 0 TTL for proto-encoded cookies, which disables cookie expiration by Envoy.
 - area: load balancing
   change: |
     Added randomization in locality load-balancing initialization. This helps desynchronizing Envoys across
@@ -190,3 +193,7 @@ new_features:
     Added support for the ``ECHO`` command.
 
 deprecated:
+- area: listener
+  change: |
+    deprecated runtime key ``overload.global_downstream_max_connections`` in favor of :ref:`downstream connections monitor
+    <envoy_v3_api_msg_extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig>`.
