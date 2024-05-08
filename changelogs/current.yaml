@@ -48,6 +48,14 @@ bug_fixes:
   change: |
     Fix a RELEASE_ASSERT when using :ref:`auto_sni <envoy_v3_api_field_config.core.v3.UpstreamHttpProtocolOptions.auto_sni>`
     if the downstream request ``:authority`` was longer than 255 characters.
+- area: ext_authz
+  change: |
+    Added field
+    :ref:`validate_mutations <envoy_v3_api_field_extensions.filters.http.ext_authz.v3.ExtAuthz.validate_mutations>`,
+    which, when set to true, adds header & query parameter mutation validation to the http ext_authz
+    filter. If an authz response contains invalid mutations, the filter responds to the downstream
+    request with HTTP 500 Internal Server Error. If you use ext_authz with an untrusted side stream,
+    it's recommended you set this to true.
 - area: http
   change: |
     Fix a crash when reloading the HTTP Connection Manager via ECDS.
@@ -93,6 +101,11 @@ new_features:
   change: |
     Added :ref:`Filter State Input <envoy_v3_api_msg_extensions.matching.common_inputs.network.v3.FilterStateInput>`
     for matching http input based on filter state objects.
+- area: quic
+  change: |
+    Added support for QUIC server preferred address when there is a DNAT between the client and Envoy. See
+    :ref:`new config
+    <envoy_v3_api_field_extensions.quic.server_preferred_address.v3.FixedServerPreferredAddressConfig.AddressFamilyConfig.dnat_address>`.
 - area: cares
   change: |
     Added :ref:`udp_max_queries<envoy_v3_api_field_extensions.network.dns_resolver.cares.v3.CaresDnsResolverConfig.udp_max_queries>`
@@ -108,3 +121,8 @@ new_features:
     Added support for `inline commands <https://redis.io/docs/reference/protocol-spec/#inline-commands>`_.
 
 deprecated:
+- area: tracing
+  change: |
+    Disable OpenCensus by default, as it is
+    `no longer supported/maintained upstream <https://opentelemetry.io/blog/2023/sunsetting-opencensus/>`_.
+    This extension can be replaced with the OpenTelemetry tracer and collector.
