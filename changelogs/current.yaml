@@ -34,6 +34,9 @@ minor_behavior_changes:
     Changes in ``AsyncStreamImpl`` now propagate tracing context headers in bidirectional streams when using
     :ref:`Envoy gRPC client <envoy_v3_api_field_config.core.v3.GrpcService.envoy_grpc>`. Previously, tracing context headers
     were not being set when calling external services such as ``ext_proc``.
+- area: http
+  change: |
+    Fixed host header changes for shadow requests to properly handle ipv6 addresses.
 - area: tracers
   change: |
     Set status code for OpenTelemetry tracers (previously unset).
@@ -178,13 +181,19 @@ removed_config_or_runtime:
     Removed ``envoy.reloadable_features.detect_and_raise_rst_tcp_connection`` runtime flag and legacy code paths.
 - area: http
   change: |
-    Removed ``envoy.reloadable_features.lowercase_scheme`` runtime flag and lagacy code paths.
+    Removed ``envoy.reloadable_features.lowercase_scheme`` runtime flag and legacy code paths.
 - area: upstream
   change: |
-    Removed ``envoy.reloadable_features.convert_legacy_lb_config`` runtime flag and lagacy code paths.
+    Removed ``envoy.reloadable_features.convert_legacy_lb_config`` runtime flag and legacy code paths.
+- area: thrift
+  change: |
+    Removed ``envoy.reloadable_features.thrift_connection_draining`` runtime flag and legacy code paths.
 - area: router
   change: |
     Removed ``envoy.reloadable_features.copy_response_code_to_downstream_stream_info`` runtime flag and legacy code paths.
+- area: http2
+  change: |
+    Removed ``envoy.reloadable_features.http2_decode_metadata_with_quiche`` runtime flag and legacy code paths.
 - area: jwt
   change: |
     Removed ``envoy.reloadable_features.token_passed_entirely`` runtime flag and legacy code paths.
