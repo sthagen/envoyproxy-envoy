@@ -46,6 +46,10 @@ behavior_changes:
   change: |
     Move ``Continue``, ``SendLocalReply`` and ``RecoverPanic` from ``FilterCallbackHandler`` to ``DecoderFilterCallbacks`` and
     ``EncoderFilterCallbacks``, to support full-duplex processing.
+- area: tracing
+  change: |
+    Datadog: Disabled remote configuration by default.
+    To enable this feature, use the :ref:`remote_config <envoy_v3_api_field_config.trace.v3.DatadogConfig.remote_config>` field.
 
 minor_behavior_changes:
 # *Changes that may cause incompatibilities for some users, but should not for most*
@@ -491,6 +495,9 @@ new_features:
     <envoy_v3_api_field_extensions.transport_sockets.tls.v3.CertificateValidationContext.match_typed_subject_alt_names>`.
     An additional field ``oid`` is added to :ref:`SubjectAltNameMatcher
     <envoy_v3_api_msg_extensions.transport_sockets.tls.v3.SubjectAltNameMatcher>` to support this change.
+- area: retry
+  change: |
+    Added :ref:`reset-before-request retry policy <config_http_filters_router_x-envoy-retry-on>`.
 - area: ext_proc
   change: |
     Added support for observability mode which deprecates ``async_mode``. If enabled, each part of the HTTP request or response
@@ -509,6 +516,11 @@ new_features:
     Added support for wildcard resolution in :ref:`inline_dns_table
     <envoy_v3_api_field_extensions.filters.udp.dns_filter.v3.DnsFilterConfig.ServerContextConfig.inline_dns_table>`
     when DNS filter is working in server mode.
+- area: quic
+  change: |
+    QUIC stream reset error code will be added to transport failure reason.
+    This behavior can be reverted by setting the runtime flag ``envoy.reloadable_features.report_stream_reset_error_code``
+    to false.
 
 deprecated:
 - area: tracing
