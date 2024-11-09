@@ -132,6 +132,16 @@ new_features:
 - area: tls
   change: |
     Added support for P-384 and P-521 curves for TLS server certificates.
+- area: tls
+  change: |
+    Added an :ref:`option
+    <envoy_v3_api_field_extensions.transport_sockets.tls.v3.UpstreamTlsContext.auto_host_sni>` to change the upstream
+    SNI to the configured hostname for the upstream.
+- area: tls
+  change: |
+    Added an :ref:`option
+    <envoy_v3_api_field_extensions.transport_sockets.tls.v3.UpstreamTlsContext.auto_sni_san_validation>` to validate
+    the upstream server certificate SANs against the actual SNI value sent, regardless of the method of configuring SNI.
 - area: xds
   change: |
     Added support for ADS replacement by invoking ``xdsManager().setAdsConfigSource()`` with a new config source.
@@ -183,5 +193,13 @@ new_features:
     <envoy_v3_api_field_extensions.network.dns_resolver.cares.v3.CaresDnsResolverConfig.query_timeout_seconds>` and
     custom tries could be configured by specifying :ref:`query_tries
     <envoy_v3_api_field_extensions.network.dns_resolver.cares.v3.CaresDnsResolverConfig.query_tries>`.
+- area: rbac
+  change: |
+    added :ref:`sourced_metadata <envoy_v3_api_field_config.rbac.v3.Permission.sourced_metadata>` which allows
+    specifying an optional source for the metadata to be matched in addition to the metadata matcher.
 
 deprecated:
+- area: rbac
+  change: |
+    metadata :ref:`sourced_metadata <envoy_v3_api_field_config.rbac.v3.Permission.metadata>` is now deprecated in the
+    favor of :ref:`sourced_metadata <envoy_v3_api_field_config.rbac.v3.Permission.sourced_metadata>`.
