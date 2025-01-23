@@ -147,14 +147,14 @@ REPOSITORY_LOCATIONS_SPEC = dict(
     boringssl_fips = dict(
         project_name = "BoringSSL (FIPS)",
         project_desc = "FIPS compliant BoringSSL",
-        project_url = "https://boringssl.googlesource.com/boringssl/+/master/crypto/fipsmodule/FIPS.md",
+        project_url = "https://boringssl.googlesource.com/boringssl/+/main/crypto/fipsmodule/FIPS.md",
         # When this is updated to a revision newer than 2022-08-12,
         # CertValidatorUtil::setIgnoreCertificateExpiration can be simplified.
         #
         # !!! NOTE !!!
         # Anytime the FIPS BoringSSL version is upgraded, `bazel/external/boringssl_fips.genrule_cmd` must be updated to use the toolchain
         # specified in the associated accreditation certificate, which can be found linked from
-        # https://boringssl.googlesource.com/boringssl/+/refs/heads/master/crypto/fipsmodule/FIPS.md, for example
+        # https://boringssl.googlesource.com/boringssl/+/refs/heads/main/crypto/fipsmodule/FIPS.md, for example
         # https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4735.
         version = "fips-20220613",
         sha256 = "62f733289f2d677c2723f556aa58034c438f3a7bbca6c12b156538a88e38da8a",
@@ -461,11 +461,11 @@ REPOSITORY_LOCATIONS_SPEC = dict(
         project_name = "libipp-crypto",
         project_desc = "Intel® Integrated Performance Primitives Cryptography",
         project_url = "https://github.com/intel/cryptography-primitives",
-        version = "2021.11.1",
-        sha256 = "76779724378fb3ec8b59047be02f6ca609c1ee70372b0205d937d451987bdb6c",
-        strip_prefix = "cryptography-primitives-ippcp_{version}",
-        urls = ["https://github.com/intel/cryptography-primitives/archive/ippcp_{version}.tar.gz"],
-        release_date = "2024-02-28",
+        version = "1.0.1",
+        sha256 = "8cf31ecb47c705603d6c41401ef92d4f104bbf8b510df90cce3d41b35c13b61c",
+        strip_prefix = "cryptography-primitives-{version}",
+        urls = ["https://github.com/intel/cryptography-primitives/archive/refs/tags/v{version}.tar.gz"],
+        release_date = "2024-12-11",
         use_category = ["dataplane_ext"],
         extensions = ["envoy.tls.key_providers.cryptomb"],
         cpe = "cpe:2.3:a:intel:cryptography_for_intel_integrated_performance_primitives:*",
