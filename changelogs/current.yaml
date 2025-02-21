@@ -175,9 +175,18 @@ new_features:
   change: |
     Added the initial support for shared libraries to be loaded by Envoy at runtime. Please refer to the overview documentation for the
     feature :ref:`here <arch_overview_dynamic_modules>`.
+- area: ext_proc
+  change: |
+    Added an :ref:`extension
+    <envoy_v3_api_msg_extensions.http.ext_proc.response_processors.save_processing_response.v3.SaveProcessingResponse>` to save the
+    :ref:`response <envoy_v3_api_msg_service.ext_proc.v3.ProcessingResponse>` from the external processor to filter state.
 - area: http
   change: |
     Made the :ref:`credential injector filter <envoy_v3_api_msg_extensions.filters.http.credential_injector.v3.CredentialInjector>`
     work as an upstream filter.
-
+- area: tcp_proxy
+  change: |
+    added :ref:`an option <config_network_filters_tcp_proxy_receive_before_connect>` to allow filters to read from the
+    downstream connection before TCP proxy has opened the upstream connection, by setting a filter state object for the key
+    ``envoy.tcp_proxy.receive_before_connect``.
 deprecated:
