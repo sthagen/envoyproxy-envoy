@@ -68,6 +68,7 @@ RUNTIME_GUARD(envoy_reloadable_features_local_reply_traverses_filter_chain_after
 RUNTIME_GUARD(envoy_reloadable_features_mmdb_files_reload_enabled);
 RUNTIME_GUARD(envoy_reloadable_features_no_extension_lookup_by_name);
 RUNTIME_GUARD(envoy_reloadable_features_normalize_rds_provider_config);
+RUNTIME_GUARD(envoy_reloadable_features_oauth2_cleanup_cookies);
 RUNTIME_GUARD(envoy_reloadable_features_oauth2_encrypt_tokens);
 RUNTIME_GUARD(envoy_reloadable_features_oauth2_use_refresh_token);
 RUNTIME_GUARD(envoy_reloadable_features_original_dst_rely_on_idle_timeout);
@@ -161,6 +162,9 @@ FALSE_RUNTIME_GUARD(envoy_reloadable_features_use_canonical_suffix_for_srtt);
 FALSE_RUNTIME_GUARD(envoy_reloadable_features_log_ip_families_on_network_error);
 // TODO(botengyao): flip to true after canarying the feature internally without problems.
 FALSE_RUNTIME_GUARD(envoy_reloadable_features_connection_close_through_filter_manager);
+// TODO(adisuissa): flip to true after all xDS types use the new subscription
+// method, and this is tested extensively.
+FALSE_RUNTIME_GUARD(envoy_reloadable_features_xdstp_based_config_singleton_subscriptions);
 
 // A flag to set the maximum TLS version for google_grpc client to TLS1.2, when needed for
 // compliance restrictions.
