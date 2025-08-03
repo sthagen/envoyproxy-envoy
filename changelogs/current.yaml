@@ -26,6 +26,15 @@ removed_config_or_runtime:
 - area: dfp
   change: |
     Removed runtime guard ``envoy.reloadable_features.dfp_fail_on_empty_host_header`` and legacy code paths.
+- area: quic
+  change: |
+    Removed runtime guard ``envoy.reloadable_features.prefer_quic_client_udp_gro`` and legacy code paths.
+- area: udp_proxy
+  change: |
+    Removed runtime guard ``envoy.reloadable_features.enable_udp_proxy_outlier_detection`` and legacy code paths.
+- area: http
+  change: |
+    Removed runtime guard ``envoy.reloadable_features.filter_chain_aborted_can_not_continue`` and legacy code paths.
 
 new_features:
 - area: health_check
@@ -77,5 +86,13 @@ new_features:
   change: |
     Added support for resource attributes. The stat sink will use the resource attributes configured for the OpenTelemetry tracer via
     :ref:`resource_detectors <envoy_v3_api_field_config.trace.v3.OpenTelemetryConfig.resource_detectors>`.
+- area: lua
+  change: |
+    Added ``virtualHost()`` to the Stream handle API, allowing Lua scripts to retrieve virtual host information. So far, the only method
+    implemented is ``metadata()``, allowing Lua scripts to access virtual host metadata scoped to the specific filter name. See
+    :ref:`Virtual host object API <config_http_filters_lua_virtual_host_wrapper>` for more details.
+- area: rbac
+  change: |
+    Switch the IP matcher to use LC-Trie for performance improvements.
 
 deprecated:
