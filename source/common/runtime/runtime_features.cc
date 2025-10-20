@@ -71,7 +71,6 @@ RUNTIME_GUARD(envoy_reloadable_features_router_filter_resetall_on_local_reply);
 RUNTIME_GUARD(envoy_reloadable_features_safe_http2_options);
 RUNTIME_GUARD(envoy_reloadable_features_skip_dns_lookup_for_proxied_requests);
 RUNTIME_GUARD(envoy_reloadable_features_skip_ext_proc_on_local_reply);
-RUNTIME_GUARD(envoy_reloadable_features_tcp_proxy_retry_on_different_event_loop);
 RUNTIME_GUARD(envoy_reloadable_features_tcp_proxy_set_idle_timer_immediately_on_new_connection);
 RUNTIME_GUARD(envoy_reloadable_features_test_feature_true);
 RUNTIME_GUARD(envoy_reloadable_features_trace_refresh_after_route_refresh);
@@ -186,6 +185,8 @@ FALSE_RUNTIME_GUARD(envoy_restart_features_use_cached_grpc_client_for_xds);
 // Runtime guard to revert back to old non-RFC-compliant CONNECT behavior without Host header.
 // TODO(vinaykul): Drop this false-runtime-guard when deemed safe with RFC 9110 compliant CONNECT.
 FALSE_RUNTIME_GUARD(envoy_reloadable_features_http_11_proxy_connect_legacy_format);
+// TODO(tsaarni): Flip to true after prod testing or remove.
+FALSE_RUNTIME_GUARD(envoy_reloadable_features_fixed_heap_use_allocated);
 
 // Block of non-boolean flags. Use of int flags is deprecated. Do not add more.
 ABSL_FLAG(uint64_t, re2_max_program_size_error_level, 100, ""); // NOLINT
