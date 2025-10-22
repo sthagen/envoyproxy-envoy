@@ -46,6 +46,11 @@ bug_fixes:
   change: |
     Fix a crash in the TCP connection pool that occurs during downstream connection teardown when large requests
     or responses trigger flow control.
+- area: http
+  change: |
+    Fixed ``shouldDrainConnectionUponCompletion()`` to properly send ``GOAWAY`` frames for HTTP/2 and HTTP/3
+    instead of aggressively closing connections. This prevents response body transmission interruption and
+    ``ERR_DRAINING`` errors on the client side. HTTP/1.1 behavior remains unchanged.
 
 removed_config_or_runtime:
 # *Normally occurs at the end of the* :ref:`deprecation period <deprecated>`
@@ -98,5 +103,10 @@ new_features:
 - area: admin
   change: |
     Added ``/memory/tcmalloc`` admin endpoint that provides TCMalloc memory statistics.
+- area: quic
+  change: |
+    Add a new quic configuration field, 'max_sessions_per_event_loop', to QuicProtocolOptions in Envoy listener.
+    This allows tuning the maximum number of new QUIC sessions created within a single event loop.
+    The default value is 16, preserving the previous hardcoded limit.
 
 deprecated:
