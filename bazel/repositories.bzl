@@ -172,6 +172,7 @@ def envoy_dependencies(skip_targets = []):
     _rules_proto_grpc()
     _com_github_unicode_org_icu()
     _com_github_intel_ipp_crypto_crypto_mb()
+    _numactl()
     _com_github_intel_qatlib()
     _com_github_intel_qatzip()
     _com_github_qat_zstd()
@@ -196,7 +197,7 @@ def envoy_dependencies(skip_targets = []):
     _simdutf()
     _intel_ittapi()
     _com_github_google_quiche()
-    _com_googlesource_googleurl()
+    _googleurl()
     _io_hyperscan()
     _io_vectorscan()
     _io_opentelemetry_api_cpp()
@@ -398,6 +399,12 @@ def _com_github_intel_ipp_crypto_crypto_mb():
     external_http_archive(
         name = "com_github_intel_ipp_crypto_crypto_mb",
         build_file_content = BUILD_ALL_CONTENT,
+    )
+
+def _numactl():
+    external_http_archive(
+        name = "numactl",
+        build_file = "@envoy//bazel/external:numactl.BUILD",
     )
 
 def _com_github_intel_qatlib():
@@ -804,9 +811,9 @@ def _com_github_google_quiche():
         build_file = "@envoy//bazel/external:quiche.BUILD",
     )
 
-def _com_googlesource_googleurl():
+def _googleurl():
     external_http_archive(
-        name = "com_googlesource_googleurl",
+        name = "googleurl",
         patches = ["@envoy//bazel/external:googleurl.patch"],
         patch_args = ["-p1"],
     )
