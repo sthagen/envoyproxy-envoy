@@ -120,21 +120,25 @@ public:
 
   // Returns a constant reference to the type finder which resolves type URL string to the
   // corresponding `Protobuf::Type*`.
-  const TypeFinder& getTypeFinder() const { return *type_finder_; };
+  virtual const TypeFinder& getTypeFinder() const { return *type_finder_; };
 
   // Returns the request type of the method.
-  absl::StatusOr<const Protobuf::Type*> getRequestType(const std::string& method_name) const;
+  virtual absl::StatusOr<const Protobuf::Type*>
+  getRequestType(const std::string& method_name) const;
 
   // Returns the response type of the method.
-  absl::StatusOr<const Protobuf::Type*> getResponseType(const std::string& method_name) const;
+  virtual absl::StatusOr<const Protobuf::Type*>
+  getResponseType(const std::string& method_name) const;
 
   FilteringMode filteringMode() const { return filtering_mode_; }
 
-private:
-  friend class MockProtoApiScrubberFilterConfig;
-  // Private constructor to make sure that this class is used in a factory fashion using the
+protected:
+  // Protected constructor to make sure that this class is used in a factory fashion using the
   // public `create` method.
   ProtoApiScrubberFilterConfig() = default;
+
+private:
+  friend class MockProtoApiScrubberFilterConfig;
 
   // Validates the filtering mode. Currently, only FilteringMode::OVERRIDE is supported.
   // For any unsupported FilteringMode, it returns absl::InvalidArgument.
@@ -217,16 +221,11 @@ private:
 class MatcherInputValidatorVisitor : public Matcher::MatchTreeValidationVisitor<HttpMatchingData> {
 public:
   // Validates whether the input type for the matcher is in the list of supported input types.
-  // Currently, only CEL input type (i.e., HttpAttributesCelMatchInput) is supported.
+  // ProtoApiScrubber filter supports all types of data inputs and hence, it returns
+  // `absl::OkStatus()` by default.
   absl::Status performDataInputValidation(const Matcher::DataInputFactory<HttpMatchingData>&,
-                                          absl::string_view type_url) override {
-    if (type_url == TypeUtil::descriptorFullNameToTypeUrl(
-                        HttpAttributesCelMatchInput::descriptor()->full_name())) {
-      return absl::OkStatus();
-    }
-
-    return absl::InvalidArgumentError(
-        fmt::format("ProtoApiScrubber filter does not support matching on '{}'", type_url));
+                                          absl::string_view) override {
+    return absl::OkStatus();
   }
 };
 
