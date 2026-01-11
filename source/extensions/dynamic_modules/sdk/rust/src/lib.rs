@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 #![allow(clippy::unnecessary_cast)]
 
+pub mod access_log;
 pub mod buffer;
 pub use buffer::{EnvoyBuffer, EnvoyMutBuffer};
 use mockall::predicate::*;
@@ -867,9 +868,7 @@ pub trait EnvoyHttpFilter {
 
   /// Set the number-typed dynamic metadata value with the given key.
   /// If the namespace is not found, this will create a new namespace.
-  ///
-  /// Returns true if the operation is successful.
-  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64) -> bool;
+  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64);
 
   /// Get the string-typed metadata value with the given key.
   /// Use the `source` parameter to specify which metadata to use.
@@ -885,7 +884,7 @@ pub trait EnvoyHttpFilter {
   /// If the namespace is not found, this will create a new namespace.
   ///
   /// Returns true if the operation is successful.
-  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) -> bool;
+  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str);
 
   /// Get the bytes-typed filter state value with the given key.
   /// If the filter state is not found or is the wrong type, this returns `None`.
@@ -951,11 +950,11 @@ pub trait EnvoyHttpFilter {
   /// This should only be used in the [`HttpFilter::on_request_body`] callback.
   ///
   /// Returns None if the request body is not available.
-  fn get_received_request_body_size(&mut self) -> Option<usize>;
+  fn get_received_request_body_size(&mut self) -> usize;
 
   /// Similar to [`EnvoyHttpFilter::get_received_request_body_size`], but returns the size of the
   /// buffered request body in bytes.
-  fn get_buffered_request_body_size(&mut self) -> Option<usize>;
+  fn get_buffered_request_body_size(&mut self) -> usize;
 
   /// Drain the given number of bytes from the front of the received request body.
   /// This should only be used in the [`HttpFilter::on_request_body`] callback.
@@ -1052,14 +1051,14 @@ pub trait EnvoyHttpFilter {
   /// Get the size of the received response body in bytes.
   /// This should only be used in the [`HttpFilter::on_response_body`] callback.
   ///
-  /// Returns None if the response body is not available.
-  fn get_received_response_body_size(&mut self) -> Option<usize>;
+  /// Returns zero if the response body is not available or empty.
+  fn get_received_response_body_size(&mut self) -> usize;
 
   /// Similar to [`EnvoyHttpFilter::get_received_response_body_size`], but returns the size of the
   /// buffered response body in bytes.
   ///
-  /// Returns None if the response body is not available.
-  fn get_buffered_response_body_size(&mut self) -> Option<usize>;
+  /// Returns zero if the response body is not available or empty.
+  fn get_buffered_response_body_size(&mut self) -> usize;
 
   /// Drain the given number of bytes from the front of the received response body.
   /// This should only be used in the [`HttpFilter::on_response_body`] callback.
@@ -1642,7 +1641,7 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
     }
   }
 
-  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64) -> bool {
+  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64) {
     unsafe {
       abi::envoy_dynamic_module_callback_http_set_dynamic_metadata_number(
         self.raw_ptr,
@@ -1679,7 +1678,7 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
     }
   }
 
-  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) -> bool {
+  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) {
     unsafe {
       abi::envoy_dynamic_module_callback_http_set_dynamic_metadata_string(
         self.raw_ptr,
@@ -1720,15 +1719,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   }
 
   fn get_received_request_body(&mut self) -> Option<Vec<EnvoyMutBuffer>> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+    let size = unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_chunks_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::ReceivedRequestBody,
-        &mut size,
       )
     };
-    if !ok || size == 0 {
+    if size == 0 {
       return None;
     }
 
@@ -1748,15 +1745,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   }
 
   fn get_buffered_request_body(&mut self) -> Option<Vec<EnvoyMutBuffer<'_>>> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+    let size = unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_chunks_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::BufferedRequestBody,
-        &mut size,
       )
     };
-    if !ok || size == 0 {
+    if size == 0 {
       return None;
     }
 
@@ -1775,35 +1770,21 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
     }
   }
 
-  fn get_received_request_body_size(&mut self) -> Option<usize> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+  fn get_received_request_body_size(&mut self) -> usize {
+    unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::ReceivedRequestBody,
-        &mut size as *mut _ as *mut _,
       )
-    };
-    if ok {
-      Some(size)
-    } else {
-      None
     }
   }
 
-  fn get_buffered_request_body_size(&mut self) -> Option<usize> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+  fn get_buffered_request_body_size(&mut self) -> usize {
+    unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::BufferedRequestBody,
-        &mut size as *mut _ as *mut _,
       )
-    };
-    if ok {
-      Some(size)
-    } else {
-      None
     }
   }
 
@@ -1848,15 +1829,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   }
 
   fn get_received_response_body(&mut self) -> Option<Vec<EnvoyMutBuffer>> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+    let size = unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_chunks_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::ReceivedResponseBody,
-        &mut size,
       )
     };
-    if !ok || size == 0 {
+    if size == 0 {
       return None;
     }
 
@@ -1876,15 +1855,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   }
 
   fn get_buffered_response_body(&mut self) -> Option<Vec<EnvoyMutBuffer<'_>>> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+    let size = unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_chunks_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::BufferedResponseBody,
-        &mut size,
       )
     };
-    if !ok || size == 0 {
+    if size == 0 {
       return None;
     }
 
@@ -1903,35 +1880,21 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
     }
   }
 
-  fn get_received_response_body_size(&mut self) -> Option<usize> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+  fn get_received_response_body_size(&mut self) -> usize {
+    unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::ReceivedResponseBody,
-        &mut size as *mut _ as *mut _,
       )
-    };
-    if ok {
-      Some(size)
-    } else {
-      None
     }
   }
 
-  fn get_buffered_response_body_size(&mut self) -> Option<usize> {
-    let mut size: usize = 0;
-    let ok = unsafe {
+  fn get_buffered_response_body_size(&mut self) -> usize {
+    unsafe {
       abi::envoy_dynamic_module_callback_http_get_body_size(
         self.raw_ptr,
         abi::envoy_dynamic_module_type_http_body_type::BufferedResponseBody,
-        &mut size as *mut _ as *mut _,
       )
-    };
-    if ok {
-      Some(size)
-    } else {
-      None
     }
   }
 
@@ -2406,15 +2369,10 @@ impl EnvoyHttpFilterImpl {
     &self,
     header_type: abi::envoy_dynamic_module_type_http_header_type,
   ) -> Vec<(EnvoyBuffer, EnvoyBuffer)> {
-    let mut count: usize = 0;
-    let ok = unsafe {
-      abi::envoy_dynamic_module_callback_http_get_headers_size(
-        self.raw_ptr,
-        header_type,
-        &mut count as *mut _ as *mut _,
-      )
+    let count = unsafe {
+      abi::envoy_dynamic_module_callback_http_get_headers_size(self.raw_ptr, header_type)
     };
-    if !ok || count == 0 {
+    if count == 0 {
       return Vec::default();
     }
 
@@ -3168,7 +3126,25 @@ pub static NEW_NETWORK_FILTER_CONFIG_FUNCTION: OnceLock<
 /// This is used in [`NewNetworkFilterConfigFunction`] to pass the Envoy filter configuration
 /// to the dynamic module.
 #[automock]
-pub trait EnvoyNetworkFilterConfig {}
+pub trait EnvoyNetworkFilterConfig {
+  /// Define a new counter scoped to this filter config with the given name.
+  fn define_counter(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyCounterId, envoy_dynamic_module_type_metrics_result>;
+
+  /// Define a new gauge scoped to this filter config with the given name.
+  fn define_gauge(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyGaugeId, envoy_dynamic_module_type_metrics_result>;
+
+  /// Define a new histogram scoped to this filter config with the given name.
+  fn define_histogram(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyHistogramId, envoy_dynamic_module_type_metrics_result>;
+}
 
 /// The trait that represents the configuration for an Envoy network filter configuration.
 /// This has one to one mapping with the [`EnvoyNetworkFilterConfig`] object.
@@ -3354,8 +3330,7 @@ pub trait EnvoyNetworkFilter {
   fn get_filter_state_bytes<'a>(&'a self, key: &[u8]) -> Option<EnvoyBuffer<'a>>;
 
   /// Set the string-typed dynamic metadata value with the given namespace and key value.
-  /// Returns true if the operation is successful.
-  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) -> bool;
+  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str);
 
   /// Get the string-typed dynamic metadata value with the given namespace and key value.
   /// Returns None if the metadata is not found or is the wrong type.
@@ -3363,7 +3338,7 @@ pub trait EnvoyNetworkFilter {
 
   /// Set the number-typed dynamic metadata value with the given namespace and key value.
   /// Returns true if the operation is successful.
-  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64) -> bool;
+  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64);
 
   /// Get the number-typed dynamic metadata value with the given namespace and key value.
   /// Returns None if the metadata is not found or is the wrong type.
@@ -3376,7 +3351,7 @@ pub trait EnvoyNetworkFilter {
     name: i64,
     state: abi::envoy_dynamic_module_type_socket_option_state,
     value: i64,
-  ) -> bool;
+  );
 
   /// Set a bytes socket option with the given level, name, and state.
   fn set_socket_option_bytes(
@@ -3385,7 +3360,7 @@ pub trait EnvoyNetworkFilter {
     name: i64,
     state: abi::envoy_dynamic_module_type_socket_option_state,
     value: &[u8],
-  ) -> bool;
+  );
 
   /// Get an integer socket option value.
   fn get_socket_option_int(
@@ -3435,6 +3410,41 @@ pub trait EnvoyNetworkFilter {
     abi::envoy_dynamic_module_type_http_callout_init_result,
     u64, // callout handle
   );
+
+  /// Increment the counter with the given id.
+  fn increment_counter(
+    &self,
+    id: EnvoyCounterId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result>;
+
+  /// Set the value of the gauge with the given id.
+  fn set_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result>;
+
+  /// Increase the gauge with the given id.
+  fn increase_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result>;
+
+  /// Decrease the gauge with the given id.
+  fn decrease_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result>;
+
+  /// Record a value in the histogram with the given id.
+  fn record_histogram_value(
+    &self,
+    id: EnvoyHistogramId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result>;
 }
 
 pub enum SocketOptionValue {
@@ -3460,7 +3470,52 @@ impl EnvoyNetworkFilterConfigImpl {
   }
 }
 
-impl EnvoyNetworkFilterConfig for EnvoyNetworkFilterConfigImpl {}
+impl EnvoyNetworkFilterConfig for EnvoyNetworkFilterConfigImpl {
+  fn define_counter(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyCounterId, envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_config_define_counter(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyCounterId(id))
+  }
+
+  fn define_gauge(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyGaugeId, envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_config_define_gauge(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyGaugeId(id))
+  }
+
+  fn define_histogram(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyHistogramId, envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_config_define_histogram(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyHistogramId(id))
+  }
+}
 
 /// The implementation of [`EnvoyNetworkFilter`] for the Envoy network filter.
 pub struct EnvoyNetworkFilterImpl {
@@ -3475,13 +3530,16 @@ impl EnvoyNetworkFilterImpl {
 
 impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
   fn get_read_buffer_chunks(&mut self) -> (Vec<EnvoyBuffer>, usize) {
-    let mut size: usize = 0;
-    let ok = unsafe {
-      abi::envoy_dynamic_module_callback_network_filter_get_read_buffer_chunks_size(
-        self.raw, &mut size,
-      )
+    let size = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_get_read_buffer_chunks_size(self.raw)
     };
-    if !ok || size == 0 {
+    if size == 0 {
+      return (Vec::new(), 0);
+    }
+
+    let total_length =
+      unsafe { abi::envoy_dynamic_module_callback_network_filter_get_read_buffer_size(self.raw) };
+    if total_length == 0 {
       return (Vec::new(), 0);
     }
 
@@ -3492,7 +3550,7 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
       };
       size
     ];
-    let total_length = unsafe {
+    unsafe {
       abi::envoy_dynamic_module_callback_network_filter_get_read_buffer_chunks(
         self.raw,
         buffers.as_mut_ptr(),
@@ -3506,13 +3564,16 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
   }
 
   fn get_write_buffer_chunks(&mut self) -> (Vec<EnvoyBuffer>, usize) {
-    let mut size: usize = 0;
-    let ok = unsafe {
-      abi::envoy_dynamic_module_callback_network_filter_get_write_buffer_chunks_size(
-        self.raw, &mut size,
-      )
+    let size = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_get_write_buffer_chunks_size(self.raw)
     };
-    if !ok || size == 0 {
+    if size == 0 {
+      return (Vec::new(), 0);
+    }
+
+    let total_length =
+      unsafe { abi::envoy_dynamic_module_callback_network_filter_get_write_buffer_size(self.raw) };
+    if total_length == 0 {
       return (Vec::new(), 0);
     }
 
@@ -3523,7 +3584,7 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
       };
       size
     ];
-    let total_length = unsafe {
+    unsafe {
       abi::envoy_dynamic_module_callback_network_filter_get_write_buffer_chunks(
         self.raw,
         buffers.as_mut_ptr(),
@@ -3753,11 +3814,9 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
   }
 
   fn get_ssl_uri_sans(&self) -> Vec<EnvoyBuffer> {
-    let mut size: usize = 0;
-    let success = unsafe {
-      abi::envoy_dynamic_module_callback_network_filter_get_ssl_uri_sans_size(self.raw, &mut size)
-    };
-    if !success || size == 0 {
+    let size =
+      unsafe { abi::envoy_dynamic_module_callback_network_filter_get_ssl_uri_sans_size(self.raw) };
+    if size == 0 {
       return Vec::new();
     }
 
@@ -3768,19 +3827,19 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
       };
       size
     ];
-    let count = unsafe {
+    let ok = unsafe {
       abi::envoy_dynamic_module_callback_network_filter_get_ssl_uri_sans(
         self.raw,
         sans_buffers.as_mut_ptr(),
       )
     };
-    if count == 0 {
+    if !ok {
       return Vec::new();
     }
 
     sans_buffers
       .iter()
-      .take(count)
+      .take(size)
       .map(|buf| {
         if !buf.ptr.is_null() && buf.length > 0 {
           unsafe { EnvoyBuffer::new_from_raw(buf.ptr as *const _, buf.length) }
@@ -3792,11 +3851,9 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
   }
 
   fn get_ssl_dns_sans(&self) -> Vec<EnvoyBuffer> {
-    let mut size: usize = 0;
-    let success = unsafe {
-      abi::envoy_dynamic_module_callback_network_filter_get_ssl_dns_sans_size(self.raw, &mut size)
-    };
-    if !success || size == 0 {
+    let size =
+      unsafe { abi::envoy_dynamic_module_callback_network_filter_get_ssl_dns_sans_size(self.raw) };
+    if size == 0 {
       return Vec::new();
     }
 
@@ -3807,19 +3864,19 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
       };
       size
     ];
-    let count = unsafe {
+    let ok = unsafe {
       abi::envoy_dynamic_module_callback_network_filter_get_ssl_dns_sans(
         self.raw,
         sans_buffers.as_mut_ptr(),
       )
     };
-    if count == 0 {
+    if !ok {
       return Vec::new();
     }
 
     sans_buffers
       .iter()
-      .take(count)
+      .take(size)
       .map(|buf| {
         if !buf.ptr.is_null() && buf.length > 0 {
           unsafe { EnvoyBuffer::new_from_raw(buf.ptr as *const _, buf.length) }
@@ -3880,7 +3937,7 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
     }
   }
 
-  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) -> bool {
+  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) {
     unsafe {
       abi::envoy_dynamic_module_callback_network_set_dynamic_metadata_string(
         self.raw,
@@ -3917,7 +3974,7 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
     }
   }
 
-  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64) -> bool {
+  fn set_dynamic_metadata_number(&mut self, namespace: &str, key: &str, value: f64) {
     unsafe {
       abi::envoy_dynamic_module_callback_network_set_dynamic_metadata_number(
         self.raw,
@@ -3951,7 +4008,7 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
     name: i64,
     state: abi::envoy_dynamic_module_type_socket_option_state,
     value: i64,
-  ) -> bool {
+  ) {
     unsafe {
       abi::envoy_dynamic_module_callback_network_set_socket_option_int(
         self.raw, level, name, state, value,
@@ -3965,7 +4022,7 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
     name: i64,
     state: abi::envoy_dynamic_module_type_socket_option_state,
     value: &[u8],
-  ) -> bool {
+  ) {
     unsafe {
       abi::envoy_dynamic_module_callback_network_set_socket_option_bytes(
         self.raw,
@@ -4123,6 +4180,85 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
     };
 
     (result, callout_id)
+  }
+
+  fn increment_counter(
+    &self,
+    id: EnvoyCounterId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
+    let EnvoyCounterId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_increment_counter(self.raw, id, value)
+    };
+    if res == envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn set_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res =
+      unsafe { abi::envoy_dynamic_module_callback_network_filter_set_gauge(self.raw, id, value) };
+    if res == envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn increase_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_increment_gauge(self.raw, id, value)
+    };
+    if res == envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn decrease_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_decrement_gauge(self.raw, id, value)
+    };
+    if res == envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn record_histogram_value(
+    &self,
+    id: EnvoyHistogramId,
+    value: u64,
+  ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
+    let EnvoyHistogramId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_record_histogram_value(self.raw, id, value)
+    };
+    if res == envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
   }
 }
 
@@ -4365,7 +4501,25 @@ pub static NEW_LISTENER_FILTER_CONFIG_FUNCTION: OnceLock<
 /// This is used in [`NewListenerFilterConfigFunction`] to pass the Envoy filter configuration
 /// to the dynamic module.
 #[automock]
-pub trait EnvoyListenerFilterConfig {}
+pub trait EnvoyListenerFilterConfig {
+  /// Define a new counter scoped to this filter config with the given name.
+  fn define_counter(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyCounterId, abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Define a new gauge scoped to this filter config with the given name.
+  fn define_gauge(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyGaugeId, abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Define a new histogram scoped to this filter config with the given name.
+  fn define_histogram(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyHistogramId, abi::envoy_dynamic_module_type_metrics_result>;
+}
 
 /// The trait that represents the configuration for an Envoy listener filter configuration.
 /// This has one to one mapping with the [`EnvoyListenerFilterConfig`] object.
@@ -4464,12 +4618,46 @@ pub trait EnvoyListenerFilter {
   fn get_dynamic_metadata_string(&self, namespace: &str, key: &str) -> Option<String>;
 
   /// Set the string-typed dynamic metadata value with the given namespace and key value.
-  /// Returns true if the operation is successful.
-  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) -> bool;
+  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str);
 
   /// Get the maximum number of bytes to read from the socket.
   /// This is used to determine the buffer size for reading data.
   fn max_read_bytes(&self) -> usize;
+
+  /// Increment the counter with the given id.
+  fn increment_counter(
+    &self,
+    id: EnvoyCounterId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Set the value of the gauge with the given id.
+  fn set_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Increase the gauge with the given id.
+  fn increase_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Decrease the gauge with the given id.
+  fn decrease_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Record a value in the histogram with the given id.
+  fn record_histogram_value(
+    &self,
+    id: EnvoyHistogramId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
 }
 
 /// The implementation of [`EnvoyListenerFilterConfig`] for the Envoy listener filter
@@ -4484,7 +4672,52 @@ impl EnvoyListenerFilterConfigImpl {
   }
 }
 
-impl EnvoyListenerFilterConfig for EnvoyListenerFilterConfigImpl {}
+impl EnvoyListenerFilterConfig for EnvoyListenerFilterConfigImpl {
+  fn define_counter(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyCounterId, abi::envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_config_define_counter(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyCounterId(id))
+  }
+
+  fn define_gauge(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyGaugeId, abi::envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_config_define_gauge(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyGaugeId(id))
+  }
+
+  fn define_histogram(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyHistogramId, abi::envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_config_define_histogram(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyHistogramId(id))
+  }
+}
 
 /// The implementation of [`EnvoyListenerFilter`] for the Envoy listener filter.
 pub struct EnvoyListenerFilterImpl {
@@ -4704,7 +4937,7 @@ impl EnvoyListenerFilter for EnvoyListenerFilterImpl {
     }
   }
 
-  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) -> bool {
+  fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str) {
     unsafe {
       abi::envoy_dynamic_module_callback_listener_filter_set_dynamic_metadata_string(
         self.raw,
@@ -4717,6 +4950,85 @@ impl EnvoyListenerFilter for EnvoyListenerFilterImpl {
 
   fn max_read_bytes(&self) -> usize {
     unsafe { abi::envoy_dynamic_module_callback_listener_filter_max_read_bytes(self.raw) }
+  }
+
+  fn increment_counter(
+    &self,
+    id: EnvoyCounterId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyCounterId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_increment_counter(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn set_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res =
+      unsafe { abi::envoy_dynamic_module_callback_listener_filter_set_gauge(self.raw, id, value) };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn increase_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_increment_gauge(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn decrease_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_decrement_gauge(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn record_histogram_value(
+    &self,
+    id: EnvoyHistogramId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyHistogramId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_record_histogram_value(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
   }
 }
 
@@ -4883,7 +5195,25 @@ pub static NEW_UDP_LISTENER_FILTER_CONFIG_FUNCTION: OnceLock<
 /// This is used in [`NewUdpListenerFilterConfigFunction`] to pass the Envoy filter configuration
 /// to the dynamic module.
 #[automock]
-pub trait EnvoyUdpListenerFilterConfig {}
+pub trait EnvoyUdpListenerFilterConfig {
+  /// Define a new counter scoped to this filter config with the given name.
+  fn define_counter(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyCounterId, abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Define a new gauge scoped to this filter config with the given name.
+  fn define_gauge(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyGaugeId, abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Define a new histogram scoped to this filter config with the given name.
+  fn define_histogram(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyHistogramId, abi::envoy_dynamic_module_type_metrics_result>;
+}
 
 /// The trait that represents the configuration for an Envoy UDP listener filter configuration.
 /// This has one to one mapping with the [`EnvoyUdpListenerFilterConfig`] object.
@@ -4938,6 +5268,41 @@ pub trait EnvoyUdpListenerFilter {
   /// Send a datagram.
   /// Returns true if successful.
   fn send_datagram(&mut self, data: &[u8], peer_address: &str, peer_port: u32) -> bool;
+
+  /// Increment the counter with the given id.
+  fn increment_counter(
+    &self,
+    id: EnvoyCounterId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Set the value of the gauge with the given id.
+  fn set_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Increase the gauge with the given id.
+  fn increase_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Decrease the gauge with the given id.
+  fn decrease_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Record a value in the histogram with the given id.
+  fn record_histogram_value(
+    &self,
+    id: EnvoyHistogramId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
 }
 
 /// The implementation of [`EnvoyUdpListenerFilterConfig`] for the Envoy UDP listener filter
@@ -4952,7 +5317,52 @@ impl EnvoyUdpListenerFilterConfigImpl {
   }
 }
 
-impl EnvoyUdpListenerFilterConfig for EnvoyUdpListenerFilterConfigImpl {}
+impl EnvoyUdpListenerFilterConfig for EnvoyUdpListenerFilterConfigImpl {
+  fn define_counter(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyCounterId, abi::envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_config_define_counter(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyCounterId(id))
+  }
+
+  fn define_gauge(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyGaugeId, abi::envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_config_define_gauge(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyGaugeId(id))
+  }
+
+  fn define_histogram(
+    &mut self,
+    name: &str,
+  ) -> Result<EnvoyHistogramId, abi::envoy_dynamic_module_type_metrics_result> {
+    let mut id: usize = 0;
+    Result::from(unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_config_define_histogram(
+        self.raw,
+        str_to_module_buffer(name),
+        &mut id,
+      )
+    })?;
+    Ok(EnvoyHistogramId(id))
+  }
+}
 
 /// The implementation of [`EnvoyUdpListenerFilter`] for the Envoy UDP listener filter.
 pub struct EnvoyUdpListenerFilterImpl {
@@ -4967,13 +5377,10 @@ impl EnvoyUdpListenerFilterImpl {
 
 impl EnvoyUdpListenerFilter for EnvoyUdpListenerFilterImpl {
   fn get_datagram_data(&self) -> (Vec<EnvoyBuffer<'_>>, usize) {
-    let mut size: usize = 0;
-    let ok = unsafe {
-      abi::envoy_dynamic_module_callback_udp_listener_filter_get_datagram_data_chunks_size(
-        self.raw, &mut size,
-      )
+    let size = unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_get_datagram_data_chunks_size(self.raw)
     };
-    if !ok || size == 0 {
+    if size == 0 {
       return (Vec::new(), 0);
     }
     let mut buffers = vec![
@@ -4993,14 +5400,10 @@ impl EnvoyUdpListenerFilter for EnvoyUdpListenerFilterImpl {
       return (Vec::new(), 0);
     }
 
-    let mut total_length: usize = 0;
-    let ok_size = unsafe {
-      abi::envoy_dynamic_module_callback_udp_listener_filter_get_datagram_data_size(
-        self.raw,
-        &mut total_length,
-      )
+    let total_length = unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_get_datagram_data_size(self.raw)
     };
-    if !ok_size {
+    if total_length == 0 {
       // This shouldn't happen if chunks were retrieved, but for safety:
       return (Vec::new(), 0);
     }
@@ -5079,6 +5482,88 @@ impl EnvoyUdpListenerFilter for EnvoyUdpListenerFilterImpl {
         str_to_module_buffer(peer_address),
         peer_port,
       )
+    }
+  }
+
+  fn increment_counter(
+    &self,
+    id: EnvoyCounterId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyCounterId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_increment_counter(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn set_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_set_gauge(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn increase_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_increment_gauge(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn decrease_gauge(
+    &self,
+    id: EnvoyGaugeId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyGaugeId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_decrement_gauge(self.raw, id, value)
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
+    }
+  }
+
+  fn record_histogram_value(
+    &self,
+    id: EnvoyHistogramId,
+    value: u64,
+  ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result> {
+    let EnvoyHistogramId(id) = id;
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_udp_listener_filter_record_histogram_value(
+        self.raw, id, value,
+      )
+    };
+    if res == abi::envoy_dynamic_module_type_metrics_result::Success {
+      Ok(())
+    } else {
+      Err(res)
     }
   }
 }
