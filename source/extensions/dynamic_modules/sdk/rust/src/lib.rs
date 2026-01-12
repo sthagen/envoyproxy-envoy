@@ -530,6 +530,8 @@ impl EnvoyHttpFilterConfig for EnvoyHttpFilterConfigImpl {
       abi::envoy_dynamic_module_callback_http_filter_config_define_counter(
         self.raw_ptr,
         str_to_module_buffer(name),
+        std::ptr::null_mut(),
+        0,
         &mut id,
       )
     })?;
@@ -545,7 +547,7 @@ impl EnvoyHttpFilterConfig for EnvoyHttpFilterConfigImpl {
     let labels_size = labels.len();
     let mut id: usize = 0;
     Result::from(unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_config_define_counter_vec(
+      abi::envoy_dynamic_module_callback_http_filter_config_define_counter(
         self.raw_ptr,
         str_to_module_buffer(name),
         labels_ptr as *const _ as *mut _,
@@ -565,6 +567,8 @@ impl EnvoyHttpFilterConfig for EnvoyHttpFilterConfigImpl {
       abi::envoy_dynamic_module_callback_http_filter_config_define_gauge(
         self.raw_ptr,
         str_to_module_buffer(name),
+        std::ptr::null_mut(),
+        0,
         &mut id,
       )
     })?;
@@ -580,7 +584,7 @@ impl EnvoyHttpFilterConfig for EnvoyHttpFilterConfigImpl {
     let labels_size = labels.len();
     let mut id: usize = 0;
     Result::from(unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_config_define_gauge_vec(
+      abi::envoy_dynamic_module_callback_http_filter_config_define_gauge(
         self.raw_ptr,
         str_to_module_buffer(name),
         labels_ptr as *const _ as *mut _,
@@ -600,6 +604,8 @@ impl EnvoyHttpFilterConfig for EnvoyHttpFilterConfigImpl {
       abi::envoy_dynamic_module_callback_http_filter_config_define_histogram(
         self.raw_ptr,
         str_to_module_buffer(name),
+        std::ptr::null_mut(),
+        0,
         &mut id,
       )
     })?;
@@ -615,7 +621,7 @@ impl EnvoyHttpFilterConfig for EnvoyHttpFilterConfigImpl {
     let labels_size = labels.len();
     let mut id: usize = 0;
     Result::from(unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_config_define_histogram_vec(
+      abi::envoy_dynamic_module_callback_http_filter_config_define_histogram(
         self.raw_ptr,
         str_to_module_buffer(name),
         labels_ptr as *const _ as *mut _,
@@ -2179,7 +2185,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyCounterId(id) = id;
     let res = unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_increment_counter(self.raw_ptr, id, value)
+      abi::envoy_dynamic_module_callback_http_filter_increment_counter(
+        self.raw_ptr,
+        id,
+        std::ptr::null_mut(),
+        0,
+        value,
+      )
     };
     if res == envoy_dynamic_module_type_metrics_result::Success {
       Ok(())
@@ -2196,7 +2208,7 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyCounterVecId(id) = id;
     let res = unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_increment_counter_vec(
+      abi::envoy_dynamic_module_callback_http_filter_increment_counter(
         self.raw_ptr,
         id,
         labels.as_ptr() as *const _ as *mut _,
@@ -2218,7 +2230,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyGaugeId(id) = id;
     let res = unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_increment_gauge(self.raw_ptr, id, value)
+      abi::envoy_dynamic_module_callback_http_filter_increment_gauge(
+        self.raw_ptr,
+        id,
+        std::ptr::null_mut(),
+        0,
+        value,
+      )
     };
     if res == envoy_dynamic_module_type_metrics_result::Success {
       Ok(())
@@ -2235,7 +2253,7 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyGaugeVecId(id) = id;
     let res = unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_increment_gauge_vec(
+      abi::envoy_dynamic_module_callback_http_filter_increment_gauge(
         self.raw_ptr,
         id,
         labels.as_ptr() as *const _ as *mut _,
@@ -2257,7 +2275,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyGaugeId(id) = id;
     let res = unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_decrement_gauge(self.raw_ptr, id, value)
+      abi::envoy_dynamic_module_callback_http_filter_decrement_gauge(
+        self.raw_ptr,
+        id,
+        std::ptr::null_mut(),
+        0,
+        value,
+      )
     };
     if res == envoy_dynamic_module_type_metrics_result::Success {
       Ok(())
@@ -2274,7 +2298,7 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyGaugeVecId(id) = id;
     let res = unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_decrement_gauge_vec(
+      abi::envoy_dynamic_module_callback_http_filter_decrement_gauge(
         self.raw_ptr,
         id,
         labels.as_ptr() as *const _ as *mut _,
@@ -2295,8 +2319,15 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
     value: u64,
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyGaugeId(id) = id;
-    let res =
-      unsafe { abi::envoy_dynamic_module_callback_http_filter_set_gauge(self.raw_ptr, id, value) };
+    let res = unsafe {
+      abi::envoy_dynamic_module_callback_http_filter_set_gauge(
+        self.raw_ptr,
+        id,
+        std::ptr::null_mut(),
+        0,
+        value,
+      )
+    };
     if res == envoy_dynamic_module_type_metrics_result::Success {
       Ok(())
     } else {
@@ -2312,7 +2343,7 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyGaugeVecId(id) = id;
     let res = unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_set_gauge_vec(
+      abi::envoy_dynamic_module_callback_http_filter_set_gauge(
         self.raw_ptr,
         id,
         labels.as_ptr() as *const _ as *mut _,
@@ -2334,7 +2365,13 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyHistogramId(id) = id;
     Result::from(unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_record_histogram_value(self.raw_ptr, id, value)
+      abi::envoy_dynamic_module_callback_http_filter_record_histogram_value(
+        self.raw_ptr,
+        id,
+        std::ptr::null_mut(),
+        0,
+        value,
+      )
     })?;
     Ok(())
   }
@@ -2347,7 +2384,7 @@ impl EnvoyHttpFilter for EnvoyHttpFilterImpl {
   ) -> Result<(), envoy_dynamic_module_type_metrics_result> {
     let EnvoyHistogramVecId(id) = id;
     Result::from(unsafe {
-      abi::envoy_dynamic_module_callback_http_filter_record_histogram_value_vec(
+      abi::envoy_dynamic_module_callback_http_filter_record_histogram_value(
         self.raw_ptr,
         id,
         labels.as_ptr() as *const _ as *mut _,
@@ -3445,6 +3482,26 @@ pub trait EnvoyNetworkFilter {
     id: EnvoyHistogramId,
     value: u64,
   ) -> Result<(), envoy_dynamic_module_type_metrics_result>;
+
+  /// Get the upstream host address and port if an upstream host is selected.
+  /// Returns None if no upstream host is set or the address is not an IP.
+  fn get_upstream_host_address(&self) -> Option<(String, u32)>;
+
+  /// Get the upstream host hostname if an upstream host is selected.
+  /// Returns None if no upstream host is set or hostname is empty.
+  fn get_upstream_host_hostname(&self) -> Option<String>;
+
+  /// Get the upstream host cluster name if an upstream host is selected.
+  /// Returns None if no upstream host is set.
+  fn get_upstream_host_cluster(&self) -> Option<String>;
+
+  /// Check if an upstream host has been selected for this connection.
+  fn has_upstream_host(&self) -> bool;
+
+  /// Signal to the filter manager to enable secure transport mode in upstream connection.
+  /// This is done when upstream connection's transport socket is of startTLS type.
+  /// Returns true if the upstream transport was successfully converted to secure mode.
+  fn start_upstream_secure_transport(&mut self) -> bool;
 }
 
 pub enum SocketOptionValue {
@@ -4260,6 +4317,87 @@ impl EnvoyNetworkFilter for EnvoyNetworkFilterImpl {
       Err(res)
     }
   }
+
+  fn get_upstream_host_address(&self) -> Option<(String, u32)> {
+    let mut address = abi::envoy_dynamic_module_type_envoy_buffer {
+      ptr: std::ptr::null_mut(),
+      length: 0,
+    };
+    let mut port: u32 = 0;
+    let result = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_get_upstream_host_address(
+        self.raw,
+        &mut address as *mut _ as *mut _,
+        &mut port,
+      )
+    };
+    if !result || address.length == 0 || address.ptr.is_null() {
+      return None;
+    }
+    let address_str = unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        address.ptr as *const _,
+        address.length,
+      ))
+    };
+    Some((address_str.to_string(), port))
+  }
+
+  fn get_upstream_host_hostname(&self) -> Option<String> {
+    let mut hostname = abi::envoy_dynamic_module_type_envoy_buffer {
+      ptr: std::ptr::null_mut(),
+      length: 0,
+    };
+    let result = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_get_upstream_host_hostname(
+        self.raw,
+        &mut hostname as *mut _ as *mut _,
+      )
+    };
+    if !result || hostname.length == 0 || hostname.ptr.is_null() {
+      return None;
+    }
+    let hostname_str = unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        hostname.ptr as *const _,
+        hostname.length,
+      ))
+    };
+    Some(hostname_str.to_string())
+  }
+
+  fn get_upstream_host_cluster(&self) -> Option<String> {
+    let mut cluster_name = abi::envoy_dynamic_module_type_envoy_buffer {
+      ptr: std::ptr::null_mut(),
+      length: 0,
+    };
+    let result = unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_get_upstream_host_cluster(
+        self.raw,
+        &mut cluster_name as *mut _ as *mut _,
+      )
+    };
+    if !result || cluster_name.length == 0 || cluster_name.ptr.is_null() {
+      return None;
+    }
+    let cluster_str = unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        cluster_name.ptr as *const _,
+        cluster_name.length,
+      ))
+    };
+    Some(cluster_str.to_string())
+  }
+
+  fn has_upstream_host(&self) -> bool {
+    unsafe { abi::envoy_dynamic_module_callback_network_filter_has_upstream_host(self.raw) }
+  }
+
+  fn start_upstream_secure_transport(&mut self) -> bool {
+    unsafe {
+      abi::envoy_dynamic_module_callback_network_filter_start_upstream_secure_transport(self.raw)
+    }
+  }
 }
 
 // Network Filter Event Hook Implementations
@@ -4519,6 +4657,9 @@ pub trait EnvoyListenerFilterConfig {
     &mut self,
     name: &str,
   ) -> Result<EnvoyHistogramId, abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Create a new implementation of the [`EnvoyListenerFilterConfigScheduler`] trait.
+  fn new_config_scheduler(&self) -> impl EnvoyListenerFilterConfigScheduler + 'static;
 }
 
 /// The trait that represents the configuration for an Envoy listener filter configuration.
@@ -4532,6 +4673,15 @@ pub trait EnvoyListenerFilterConfig {
 pub trait ListenerFilterConfig<ELF: EnvoyListenerFilter>: Sync {
   /// This is called from a worker thread when a new connection is accepted.
   fn new_listener_filter(&self, _envoy: &mut ELF) -> Box<dyn ListenerFilter<ELF>>;
+
+  /// This is called when the new event is scheduled via the
+  /// [`EnvoyListenerFilterConfigScheduler::commit`] for this [`ListenerFilterConfig`].
+  ///
+  /// * `event_id` is the ID of the event that was scheduled with
+  ///   [`EnvoyListenerFilterConfigScheduler::commit`] to distinguish multiple scheduled events.
+  ///
+  /// See [`EnvoyListenerFilterConfig::new_config_scheduler`] for more details on how to use this.
+  fn on_config_scheduled(&self, _event_id: u64) {}
 }
 
 /// The trait that corresponds to an Envoy listener filter for each accepted connection
@@ -4564,6 +4714,16 @@ pub trait ListenerFilter<ELF: EnvoyListenerFilter> {
 
   /// This is called when the listener filter is destroyed for each accepted connection.
   fn on_close(&mut self, _envoy_filter: &mut ELF) {}
+
+  /// This is called when the new event is scheduled via the
+  /// [`EnvoyListenerFilterScheduler::commit`] for this [`ListenerFilter`].
+  ///
+  /// * `envoy_filter` can be used to interact with the underlying Envoy filter object.
+  /// * `event_id` is the ID of the event that was scheduled with
+  ///   [`EnvoyListenerFilterScheduler::commit`] to distinguish multiple scheduled events.
+  ///
+  /// See [`EnvoyListenerFilter::new_scheduler`] for more details on how to use this.
+  fn on_scheduled(&mut self, _envoy_filter: &mut ELF, _event_id: u64) {}
 }
 
 /// The trait that represents the Envoy listener filter.
@@ -4658,6 +4818,140 @@ pub trait EnvoyListenerFilter {
     id: EnvoyHistogramId,
     value: u64,
   ) -> Result<(), abi::envoy_dynamic_module_type_metrics_result>;
+
+  /// Create a new implementation of the [`EnvoyListenerFilterScheduler`] trait.
+  ///
+  /// ## Example Usage
+  ///
+  /// ```
+  /// use envoy_proxy_dynamic_modules_rust_sdk::*;
+  /// use std::thread;
+  ///
+  /// struct TestFilter;
+  /// impl<ELF: EnvoyListenerFilter> ListenerFilter<ELF> for TestFilter {
+  ///   fn on_accept(
+  ///     &mut self,
+  ///     envoy_filter: &mut ELF,
+  ///   ) -> abi::envoy_dynamic_module_type_on_listener_filter_status {
+  ///     let scheduler = envoy_filter.new_scheduler();
+  ///     let _ = std::thread::spawn(move || {
+  ///       // Do some work in a separate thread.
+  ///       // ...
+  ///       // Then schedule the event to continue processing.
+  ///       scheduler.commit(123);
+  ///     });
+  ///     abi::envoy_dynamic_module_type_on_listener_filter_status::StopIteration
+  ///   }
+  ///
+  ///   fn on_scheduled(&mut self, _envoy_filter: &mut ELF, event_id: u64) {
+  ///     // Handle the scheduled event.
+  ///     assert_eq!(event_id, 123);
+  ///   }
+  /// }
+  /// ```
+  fn new_scheduler(&self) -> impl EnvoyListenerFilterScheduler + 'static;
+}
+
+/// This represents a thread-safe object that can be used to schedule a generic event to the
+/// Envoy listener filter on the worker thread where the listener filter is running.
+///
+/// The scheduler is created by the [`EnvoyListenerFilter::new_scheduler`] method. When calling
+/// [`EnvoyListenerFilterScheduler::commit`] with an event id, eventually
+/// [`ListenerFilter::on_scheduled`] is called with the same event id on the worker thread where the
+/// listener filter is running, IF the filter is still alive by the time the event is committed.
+///
+/// Since this is primarily designed to be used from a different thread than the one
+/// where the [`ListenerFilter`] instance was created, it is marked as `Send` so that
+/// the [`Box<dyn EnvoyListenerFilterScheduler>`] can be sent across threads.
+///
+/// It is also safe to be called concurrently, so it is marked as `Sync` as well.
+#[automock]
+pub trait EnvoyListenerFilterScheduler: Send + Sync {
+  /// Commit the scheduled event to the worker thread where [`ListenerFilter`] is running.
+  ///
+  /// It accepts an `event_id` which can be used to distinguish different events
+  /// scheduled by the same filter. The `event_id` can be any value.
+  ///
+  /// Once this is called, [`ListenerFilter::on_scheduled`] will be called with
+  /// the same `event_id` on the worker thread where the filter is running IF
+  /// by the time the event is committed, the filter is still alive.
+  fn commit(&self, event_id: u64);
+}
+
+/// This implements the [`EnvoyListenerFilterScheduler`] trait with the given raw pointer to the
+/// Envoy listener filter scheduler object.
+struct EnvoyListenerFilterSchedulerImpl {
+  raw_ptr: abi::envoy_dynamic_module_type_listener_filter_scheduler_module_ptr,
+}
+
+unsafe impl Send for EnvoyListenerFilterSchedulerImpl {}
+unsafe impl Sync for EnvoyListenerFilterSchedulerImpl {}
+
+impl Drop for EnvoyListenerFilterSchedulerImpl {
+  fn drop(&mut self) {
+    unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_scheduler_delete(self.raw_ptr);
+    }
+  }
+}
+
+impl EnvoyListenerFilterScheduler for EnvoyListenerFilterSchedulerImpl {
+  fn commit(&self, event_id: u64) {
+    unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_scheduler_commit(self.raw_ptr, event_id);
+    }
+  }
+}
+
+// Box<dyn EnvoyListenerFilterScheduler> is returned by mockall, so we need to implement
+// EnvoyListenerFilterScheduler for it as well.
+impl EnvoyListenerFilterScheduler for Box<dyn EnvoyListenerFilterScheduler> {
+  fn commit(&self, event_id: u64) {
+    (**self).commit(event_id);
+  }
+}
+
+/// This represents a thread-safe object that can be used to schedule a generic event to the
+/// Envoy listener filter config on the main thread.
+#[automock]
+pub trait EnvoyListenerFilterConfigScheduler: Send + Sync {
+  /// Commit the scheduled event to the main thread.
+  fn commit(&self, event_id: u64);
+}
+
+/// This implements the [`EnvoyListenerFilterConfigScheduler`] trait.
+struct EnvoyListenerFilterConfigSchedulerImpl {
+  raw_ptr: abi::envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr,
+}
+
+unsafe impl Send for EnvoyListenerFilterConfigSchedulerImpl {}
+unsafe impl Sync for EnvoyListenerFilterConfigSchedulerImpl {}
+
+impl Drop for EnvoyListenerFilterConfigSchedulerImpl {
+  fn drop(&mut self) {
+    unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_config_scheduler_delete(self.raw_ptr);
+    }
+  }
+}
+
+impl EnvoyListenerFilterConfigScheduler for EnvoyListenerFilterConfigSchedulerImpl {
+  fn commit(&self, event_id: u64) {
+    unsafe {
+      abi::envoy_dynamic_module_callback_listener_filter_config_scheduler_commit(
+        self.raw_ptr,
+        event_id,
+      );
+    }
+  }
+}
+
+// Box<dyn EnvoyListenerFilterConfigScheduler> is returned by mockall, so we need to implement
+// EnvoyListenerFilterConfigScheduler for it as well.
+impl EnvoyListenerFilterConfigScheduler for Box<dyn EnvoyListenerFilterConfigScheduler> {
+  fn commit(&self, event_id: u64) {
+    (**self).commit(event_id);
+  }
 }
 
 /// The implementation of [`EnvoyListenerFilterConfig`] for the Envoy listener filter
@@ -4716,6 +5010,16 @@ impl EnvoyListenerFilterConfig for EnvoyListenerFilterConfigImpl {
       )
     })?;
     Ok(EnvoyHistogramId(id))
+  }
+
+  fn new_config_scheduler(&self) -> impl EnvoyListenerFilterConfigScheduler + 'static {
+    unsafe {
+      let scheduler_ptr =
+        abi::envoy_dynamic_module_callback_listener_filter_config_scheduler_new(self.raw);
+      EnvoyListenerFilterConfigSchedulerImpl {
+        raw_ptr: scheduler_ptr,
+      }
+    }
   }
 }
 
@@ -5030,6 +5334,16 @@ impl EnvoyListenerFilter for EnvoyListenerFilterImpl {
       Err(res)
     }
   }
+
+  fn new_scheduler(&self) -> impl EnvoyListenerFilterScheduler + 'static {
+    unsafe {
+      let scheduler_ptr =
+        abi::envoy_dynamic_module_callback_listener_filter_scheduler_new(self.raw);
+      EnvoyListenerFilterSchedulerImpl {
+        raw_ptr: scheduler_ptr,
+      }
+    }
+  }
 }
 
 // Listener Filter Event Hook Implementations
@@ -5137,6 +5451,29 @@ pub extern "C" fn envoy_dynamic_module_on_listener_filter_destroy(
 ) {
   let _ =
     unsafe { Box::from_raw(filter_ptr as *mut Box<dyn ListenerFilter<EnvoyListenerFilterImpl>>) };
+}
+
+#[no_mangle]
+pub extern "C" fn envoy_dynamic_module_on_listener_filter_scheduled(
+  envoy_ptr: abi::envoy_dynamic_module_type_listener_filter_envoy_ptr,
+  filter_ptr: abi::envoy_dynamic_module_type_listener_filter_module_ptr,
+  event_id: u64,
+) {
+  let filter = filter_ptr as *mut Box<dyn ListenerFilter<EnvoyListenerFilterImpl>>;
+  let filter = unsafe { &mut *filter };
+  filter.on_scheduled(&mut EnvoyListenerFilterImpl::new(envoy_ptr), event_id);
+}
+
+#[no_mangle]
+pub extern "C" fn envoy_dynamic_module_on_listener_filter_config_scheduled(
+  _filter_config_envoy_ptr: abi::envoy_dynamic_module_type_listener_filter_config_envoy_ptr,
+  filter_config_module_ptr: abi::envoy_dynamic_module_type_listener_filter_config_module_ptr,
+  event_id: u64,
+) {
+  let filter_config =
+    filter_config_module_ptr as *const *const dyn ListenerFilterConfig<EnvoyListenerFilterImpl>;
+  let filter_config = unsafe { &**filter_config };
+  filter_config.on_config_scheduled(event_id);
 }
 
 // =============================================================================

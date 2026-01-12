@@ -1011,12 +1011,17 @@ void envoy_dynamic_module_on_http_filter_downstream_below_write_buffer_low_water
 // ----------------------------- Metrics callbacks -----------------------------
 
 /**
- * envoy_dynamic_module_callback_http_filter_config_define_counter is called by the module during
- * initialization to create a new Stats::Counter with the given name.
+ * envoy_dynamic_module_callback_http_filter_config_define_counter is called by the module
+ * during initialization to create a template for generating Stats::Counters with the given name and
+ * labels during the lifecycle of the module.
  *
  * @param filter_config_envoy_ptr is the pointer to the DynamicModuleHttpFilterConfig in which the
  * counter will be defined.
  * @param name is the name of the counter to be defined.
+ * @param label_names is the labels of the counter to be defined.
+ * NOTE: label names could be null if the label_names_length is 0.
+ * @param label_names_length is the length of the label_names.
+ * NOTE: label_names_length could be 0 if there are no labels.
  * @param counter_id_ptr where the opaque ID that represents a unique metric will be stored. This
  * can be passed to envoy_dynamic_module_callback_http_filter_increment_counter together with
  * filter_envoy_ptr created from filter_config_envoy_ptr.
@@ -1025,80 +1030,33 @@ void envoy_dynamic_module_on_http_filter_downstream_below_write_buffer_low_water
 envoy_dynamic_module_type_metrics_result
 envoy_dynamic_module_callback_http_filter_config_define_counter(
     envoy_dynamic_module_type_http_filter_config_envoy_ptr filter_config_envoy_ptr,
-    envoy_dynamic_module_type_module_buffer name, size_t* counter_id_ptr);
-
-/**
- * envoy_dynamic_module_callback_http_filter_config_define_counter_vec is called by the module
- * during initialization to create a template for generating Stats::Counters with the given name and
- * labels during the lifecycle of the module.
- *
- * @param filter_config_envoy_ptr is the pointer to the DynamicModuleHttpFilterConfig in which the
- * counter will be defined.
- * @param name is the name of the counter to be defined.
- * @param label_names is the labels of the counter to be defined.
- * @param label_names_length is the length of the label_names.
- * @param counter_id_ptr where the opaque ID that represents a unique metric will be stored. This
- * can be passed to envoy_dynamic_module_callback_http_filter_increment_counter together with
- * filter_envoy_ptr created from filter_config_envoy_ptr.
- * @return the result of the operation.
- */
-envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_config_define_counter_vec(
-    envoy_dynamic_module_type_http_filter_config_envoy_ptr filter_config_envoy_ptr,
     envoy_dynamic_module_type_module_buffer name,
     envoy_dynamic_module_type_module_buffer* label_names, size_t label_names_length,
     size_t* counter_id_ptr);
 
 /**
- * envoy_dynamic_module_callback_http_filter_increment_counter is called by the module to increment
- * a previously defined counter.
- *
- * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
- * @param id is the ID of the counter previously defined using the config that created
- * filter_envoy_ptr
- * @param value is the value to increment the counter by.
- * @return the result of the operation.
- */
-envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_increment_counter(
-    envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id, uint64_t value);
-
-/**
- * envoy_dynamic_module_callback_http_filter_increment_counter_vec is called by the module to
- * increment a previously defined counter vec.
+ * envoy_dynamic_module_callback_http_filter_increment_counter is called by the module to
+ * increment a previously defined counter.
  *
  * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
  * @param id is the ID of the counter previously defined using the config that created
  * filter_envoy_ptr
  * @param label_values is the values of the labels to be incremented.
+ * NOTE: label_values could be null if the label_values_length is 0.
  * @param label_values_length is the length of the label_values.
+ * NOTE: label_values_length could be 0 if there are no labels. **THE LENGTH MUST MATCH THE
+ * LABEL NAMES DEFINED DURING COUNTER DEFINITION.**
  * @param value is the value to increment the counter by.
  * @return the result of the operation.
  */
 envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_increment_counter_vec(
+envoy_dynamic_module_callback_http_filter_increment_counter(
     envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id,
     envoy_dynamic_module_type_module_buffer* label_values, size_t label_values_length,
     uint64_t value);
 
 /**
  * envoy_dynamic_module_callback_http_filter_config_define_gauge is called by the module during
- * initialization to create a new Stats::Gauge with the given name.
- *
- * @param filter_config_envoy_ptr is the pointer to the DynamicModuleHttpFilterConfig in which the
- * gauge will be defined.
- * @param name is the name of the gauge to be defined.
- * @param gauge_id_ptr where the opaque ID that represents a unique metric will be stored. This can
- * be passed to envoy_dynamic_module_callback_http_filter_increment_gauge together with
- * filter_envoy_ptr created from filter_config_envoy_ptr.
- */
-envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_config_define_gauge(
-    envoy_dynamic_module_type_http_filter_config_envoy_ptr filter_config_envoy_ptr,
-    envoy_dynamic_module_type_module_buffer name, size_t* gauge_id_ptr);
-
-/**
- * envoy_dynamic_module_callback_http_filter_config_define_gauge_vec is called by the module during
  * initialization to create a template for generating Stats::Gauges with the given name and labels
  * during the lifecycle of the module.
  *
@@ -1106,77 +1064,57 @@ envoy_dynamic_module_callback_http_filter_config_define_gauge(
  * gauge will be defined.
  * @param name is the name of the gauge to be defined.
  * @param label_names is the labels of the gauge to be defined.
+ * NOTE: label names could be null if the label_names_length is 0.
  * @param label_names_length is the length of the label_names.
+ * NOTE: label_names_length could be 0 if there are no labels.
  * @param gauge_id_ptr where the opaque ID that represents a unique metric will be stored. This can
  * be passed to envoy_dynamic_module_callback_http_filter_increment_gauge together with
  * filter_envoy_ptr created from filter_config_envoy_ptr.
  * @return the result of the operation.
  */
 envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_config_define_gauge_vec(
+envoy_dynamic_module_callback_http_filter_config_define_gauge(
     envoy_dynamic_module_type_http_filter_config_envoy_ptr filter_config_envoy_ptr,
     envoy_dynamic_module_type_module_buffer name,
     envoy_dynamic_module_type_module_buffer* label_names, size_t label_names_length,
     size_t* gauge_id_ptr);
 
 /**
- * envoy_dynamic_module_callback_http_filter_increment_gauge is called by the module to increase the
- * value of a previously defined gauge.
- *
- * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
- * @param id is the ID of the gauge previously defined using the config that created
- * filter_envoy_ptr
- * @param value is the value to increase the gauge by.
- * @return the result of the operation.
- */
-envoy_dynamic_module_type_metrics_result envoy_dynamic_module_callback_http_filter_increment_gauge(
-    envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id, uint64_t value);
-
-/**
- * envoy_dynamic_module_callback_http_filter_increment_gauge_vec is called by the module to increase
- * the value of a previously defined gauge vec.
+ * envoy_dynamic_module_callback_http_filter_increment_gauge is called by the module to increase
+ * the value of a previously defined gauge.
  *
  * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
  * @param id is the ID of the gauge previously defined using the config that created
  * filter_envoy_ptr
  * @param label_values is the values of the labels to be increased.
+ * NOTE: label_values could be null if the label_values_length is 0.
  * @param label_values_length is the length of the label_values.
+ * NOTE: label_values_length could be 0 if there are no labels. **THE LENGTH MUST MATCH THE
+ * LABEL NAMES DEFINED DURING GAUGE DEFINITION.**
  * @param value is the value to increase the gauge by.
  * @return the result of the operation.
  */
-envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_increment_gauge_vec(
+envoy_dynamic_module_type_metrics_result envoy_dynamic_module_callback_http_filter_increment_gauge(
     envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id,
     envoy_dynamic_module_type_module_buffer* label_values, size_t label_values_length,
     uint64_t value);
 
 /**
- * envoy_dynamic_module_callback_http_filter_decrement_gauge is called by the module to decrease the
- * value of a previously defined gauge.
- *
- * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
- * @param id is the ID of the gauge previously defined using the config that created
- * filter_envoy_ptr
- * @param value is the value to decrease the gauge by.
- * @return the result of the operation.
- */
-envoy_dynamic_module_type_metrics_result envoy_dynamic_module_callback_http_filter_decrement_gauge(
-    envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id, uint64_t value);
-
-/**
- * envoy_dynamic_module_callback_http_filter_decrement_gauge_vec is called by the module to decrease
- * the value of a previously defined gauge vec.
+ * envoy_dynamic_module_callback_http_filter_decrement_gauge is called by the module to decrease
+ * the value of a previously defined gauge.
  *
  * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
  * @param id is the ID of the gauge previously defined using the config that created
  * filter_envoy_ptr
  * @param label_values is the values of the labels to be decreased.
+ * NOTE: label_values could be null if the label_values_length is 0.
  * @param label_values_length is the length of the label_values.
+ * NOTE: label_values_length could be 0 if there are no labels. **THE LENGTH MUST MATCH THE
+ * LABEL NAMES DEFINED DURING GAUGE DEFINITION.**
  * @param value is the value to decrease the gauge by.
  * @return the result of the operation.
  */
-envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_decrement_gauge_vec(
+envoy_dynamic_module_type_metrics_result envoy_dynamic_module_callback_http_filter_decrement_gauge(
     envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id,
     envoy_dynamic_module_type_module_buffer* label_values, size_t label_values_length,
     uint64_t value);
@@ -1188,48 +1126,21 @@ envoy_dynamic_module_callback_http_filter_decrement_gauge_vec(
  * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
  * @param id is the ID of the gauge previously defined using the config that created
  * filter_envoy_ptr
+ * @param label_values is the values of the labels to be set.
+ * NOTE: label_values could be null if the label_values_length is 0.
+ * @param label_values_length is the length of the label_values.
+ * NOTE: label_values_length could be 0 if there are no labels. **THE LENGTH MUST MATCH THE
+ * LABEL NAMES DEFINED DURING GAUGE DEFINITION.**
  * @param value is the value to set the gauge to.
  * @return the result of the operation.
  */
 envoy_dynamic_module_type_metrics_result envoy_dynamic_module_callback_http_filter_set_gauge(
-    envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id, uint64_t value);
-
-/**
- * envoy_dynamic_module_callback_http_filter_set_gauge_vec is called by the module to set the value
- * of a previously defined gauge vec.
- *
- * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
- * @param id is the ID of the gauge previously defined using the config that created
- * filter_envoy_ptr
- * @param label_values is the values of the labels to be set.
- * @param label_values_length is the length of the label_values.
- * @param value is the value to set the gauge to.
- * @return the result of the operation.
- */
-envoy_dynamic_module_type_metrics_result envoy_dynamic_module_callback_http_filter_set_gauge_vec(
     envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id,
     envoy_dynamic_module_type_module_buffer* label_values, size_t label_values_length,
     uint64_t value);
 
 /**
- * envoy_dynamic_module_callback_http_filter_config_define_histogram is called by the module during
- * initialization to create a new Stats::Histogram with the given name.
- *
- * @param filter_config_envoy_ptr is the pointer to the DynamicModuleHttpFilterConfig in which the
- * histogram will be defined.
- * @param name is the name of the histogram to be defined.
- * @param histogram_id_ptr where the opaque ID that represents a unique metric will be stored. This
- * can be passed to envoy_dynamic_module_callback_http_filter_record_histogram_value together with
- * filter_envoy_ptr created from filter_config_envoy_ptr.
- * @return the result of the operation.
- */
-envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_config_define_histogram(
-    envoy_dynamic_module_type_http_filter_config_envoy_ptr filter_config_envoy_ptr,
-    envoy_dynamic_module_type_module_buffer name, size_t* histogram_id_ptr);
-
-/**
- * envoy_dynamic_module_callback_http_filter_config_define_histogram_vec is called by the module
+ * envoy_dynamic_module_callback_http_filter_config_define_histogram is called by the module
  * during initialization to create a template for generating Stats::Histograms with the given name
  * and labels during the lifecycle of the module.
  *
@@ -1237,19 +1148,20 @@ envoy_dynamic_module_callback_http_filter_config_define_histogram(
  * histogram will be defined.
  * @param name is the name of the histogram to be defined.
  * @param label_names is the labels of the histogram to be defined.
+ * NOTE: label names could be null if the label_names_length is 0.
  * @param label_names_length is the length of the label_names.
+ * NOTE: label_names_length could be 0 if there are no labels.
  * @param histogram_id_ptr where the opaque ID that represents a unique metric will be stored. This
  * can be passed to envoy_dynamic_module_callback_http_filter_record_histogram_value_vec together
  * with filter_envoy_ptr created from filter_config_envoy_ptr.
  * @return the result of the operation.
  */
 envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_config_define_histogram_vec(
+envoy_dynamic_module_callback_http_filter_config_define_histogram(
     envoy_dynamic_module_type_http_filter_config_envoy_ptr filter_config_envoy_ptr,
     envoy_dynamic_module_type_module_buffer name,
     envoy_dynamic_module_type_module_buffer* label_names, size_t label_names_length,
     size_t* histogram_id_ptr);
-
 /**
  * envoy_dynamic_module_callback_http_filter_record_histogram_value is called by the module to
  * record a value in a previously defined histogram.
@@ -1257,27 +1169,16 @@ envoy_dynamic_module_callback_http_filter_config_define_histogram_vec(
  * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
  * @param id is the ID of the histogram previously defined using the config that created
  * filter_envoy_ptr
+ * @param label_values is the values of the labels to be recorded.
+ * NOTE: label_values could be null if the label_values_length is 0.
+ * @param label_values_length is the length of the label_values.
+ * NOTE: label_values_length could be 0 if there are no labels. **THE LENGTH MUST MATCH THE
+ * LABEL NAMES DEFINED DURING HISTOGRAM DEFINITION.**
  * @param value is the value to record in the histogram.
  * @return the result of the operation.
  */
 envoy_dynamic_module_type_metrics_result
 envoy_dynamic_module_callback_http_filter_record_histogram_value(
-    envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id, uint64_t value);
-
-/**
- * envoy_dynamic_module_callback_http_filter_record_histogram_value_vec is called by the module to
- * record a value in a previously defined histogram vec.
- *
- * @param filter_envoy_ptr is the pointer to the DynamicModuleHttpFilter object.
- * @param id is the ID of the histogram previously defined using the config that created
- * filter_envoy_ptr
- * @param label_values is the values of the labels to be recorded.
- * @param label_values_length is the length of the label_values.
- * @param value is the value to record in the histogram.
- * @return the result of the operation.
- */
-envoy_dynamic_module_type_metrics_result
-envoy_dynamic_module_callback_http_filter_record_histogram_value_vec(
     envoy_dynamic_module_type_http_filter_envoy_ptr filter_envoy_ptr, size_t id,
     envoy_dynamic_module_type_module_buffer* label_values, size_t label_values_length,
     uint64_t value);
@@ -2953,6 +2854,74 @@ envoy_dynamic_module_type_metrics_result
 envoy_dynamic_module_callback_network_filter_record_histogram_value(
     envoy_dynamic_module_type_network_filter_envoy_ptr filter_envoy_ptr, size_t id, uint64_t value);
 
+// ---------------------- Upstream Host Access Callbacks -----------------------
+
+/**
+ * envoy_dynamic_module_callback_network_filter_get_upstream_host_address is called by the module
+ * to get the address and port of the currently selected upstream host.
+ *
+ * @param filter_envoy_ptr is the pointer to the DynamicModuleNetworkFilter object.
+ * @param address_out is the output buffer where the address string owned by Envoy will be stored.
+ * @param port_out is the output pointer to the port number.
+ * @return true if the upstream host is set and has an IP address, false otherwise.
+ */
+bool envoy_dynamic_module_callback_network_filter_get_upstream_host_address(
+    envoy_dynamic_module_type_network_filter_envoy_ptr filter_envoy_ptr,
+    envoy_dynamic_module_type_envoy_buffer* address_out, uint32_t* port_out);
+
+/**
+ * envoy_dynamic_module_callback_network_filter_get_upstream_host_hostname is called by the module
+ * to get the hostname of the currently selected upstream host.
+ *
+ * @param filter_envoy_ptr is the pointer to the DynamicModuleNetworkFilter object.
+ * @param hostname_out is the output buffer where the hostname string owned by Envoy will be stored.
+ * @return true if the upstream host is set and has a hostname, false otherwise.
+ */
+bool envoy_dynamic_module_callback_network_filter_get_upstream_host_hostname(
+    envoy_dynamic_module_type_network_filter_envoy_ptr filter_envoy_ptr,
+    envoy_dynamic_module_type_envoy_buffer* hostname_out);
+
+/**
+ * envoy_dynamic_module_callback_network_filter_get_upstream_host_cluster is called by the module
+ * to get the cluster name of the currently selected upstream host.
+ *
+ * @param filter_envoy_ptr is the pointer to the DynamicModuleNetworkFilter object.
+ * @param cluster_name_out is the output buffer where the cluster name string owned by Envoy will
+ * be stored.
+ * @return true if the upstream host is set, false otherwise.
+ */
+bool envoy_dynamic_module_callback_network_filter_get_upstream_host_cluster(
+    envoy_dynamic_module_type_network_filter_envoy_ptr filter_envoy_ptr,
+    envoy_dynamic_module_type_envoy_buffer* cluster_name_out);
+
+/**
+ * envoy_dynamic_module_callback_network_filter_has_upstream_host is called by the module to check
+ * if an upstream host has been selected for this connection.
+ *
+ * @param filter_envoy_ptr is the pointer to the DynamicModuleNetworkFilter object.
+ * @return true if an upstream host is set, false otherwise.
+ */
+bool envoy_dynamic_module_callback_network_filter_has_upstream_host(
+    envoy_dynamic_module_type_network_filter_envoy_ptr filter_envoy_ptr);
+
+// ---------------------- StartTLS Support Callbacks ---------------------------
+
+/**
+ * envoy_dynamic_module_callback_network_filter_start_upstream_secure_transport is called by the
+ * module to convert the upstream connection from non-secure to secure mode (StartTLS).
+ *
+ * This signals the filter manager to enable secure transport mode in the upstream connection.
+ * This is done when the upstream connection's transport socket is of startTLS type. At the moment
+ * it is the only transport socket type which can be programmatically converted from non-secure
+ * mode to secure mode.
+ *
+ * @param filter_envoy_ptr is the pointer to the DynamicModuleNetworkFilter object.
+ * @return true if the upstream transport was successfully converted to secure mode, false
+ * otherwise.
+ */
+bool envoy_dynamic_module_callback_network_filter_start_upstream_secure_transport(
+    envoy_dynamic_module_type_network_filter_envoy_ptr filter_envoy_ptr);
+
 // =============================================================================
 // ============================= Listener Filter ===============================
 // =============================================================================
@@ -3012,6 +2981,32 @@ typedef void* envoy_dynamic_module_type_listener_filter_envoy_ptr;
  * released when envoy_dynamic_module_on_listener_filter_destroy is called for the same pointer.
  */
 typedef const void* envoy_dynamic_module_type_listener_filter_module_ptr;
+
+/**
+ * envoy_dynamic_module_type_listener_filter_scheduler_module_ptr is a raw pointer to the
+ * DynamicModuleListenerFilterScheduler class in Envoy.
+ *
+ * OWNERSHIP: The allocation is done by Envoy but the module is responsible for managing the
+ * lifetime of the pointer. Notably, it must be explicitly destroyed by the module
+ * when scheduling the listener filter event is done. The creation of this pointer is done by
+ * envoy_dynamic_module_callback_listener_filter_scheduler_new and the scheduling and destruction is
+ * done by envoy_dynamic_module_callback_listener_filter_scheduler_delete. Since its lifecycle is
+ * owned/managed by the module, this has _module_ptr suffix.
+ */
+typedef void* envoy_dynamic_module_type_listener_filter_scheduler_module_ptr;
+
+/**
+ * envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr is a raw pointer to the
+ * DynamicModuleListenerFilterConfigScheduler class in Envoy.
+ *
+ * OWNERSHIP: The allocation is done by Envoy but the module is responsible for managing the
+ * lifetime of the pointer. Notably, it must be explicitly destroyed by the module
+ * when scheduling the listener filter config event is done. The creation of this pointer is done by
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_new and the scheduling and
+ * destruction is done by envoy_dynamic_module_callback_listener_filter_config_scheduler_delete.
+ * Since its lifecycle is owned/managed by the module, this has _module_ptr suffix.
+ */
+typedef void* envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr;
 
 /**
  * envoy_dynamic_module_type_on_listener_filter_status represents the status of the filter
@@ -3133,6 +3128,38 @@ size_t envoy_dynamic_module_on_listener_filter_get_max_read_bytes(
  */
 void envoy_dynamic_module_on_listener_filter_destroy(
     envoy_dynamic_module_type_listener_filter_module_ptr filter_module_ptr);
+
+/**
+ * envoy_dynamic_module_on_listener_filter_scheduled is called when the listener filter is scheduled
+ * to be executed on the worker thread where the listener filter is running with
+ * envoy_dynamic_module_callback_listener_filter_scheduler_commit callback.
+ *
+ * @param filter_envoy_ptr is the pointer to the DynamicModuleListenerFilter object of the
+ * corresponding listener filter.
+ * @param filter_module_ptr is the pointer to the in-module listener filter created by
+ * envoy_dynamic_module_on_listener_filter_new.
+ * @param event_id is the ID of the event passed to
+ * envoy_dynamic_module_callback_listener_filter_scheduler_commit.
+ */
+void envoy_dynamic_module_on_listener_filter_scheduled(
+    envoy_dynamic_module_type_listener_filter_envoy_ptr filter_envoy_ptr,
+    envoy_dynamic_module_type_listener_filter_module_ptr filter_module_ptr, uint64_t event_id);
+
+/**
+ * envoy_dynamic_module_on_listener_filter_config_scheduled is called when the listener filter
+ * configuration is scheduled to be executed on the main thread with
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_commit callback.
+ *
+ * @param filter_config_envoy_ptr is the pointer to the DynamicModuleListenerFilterConfig object.
+ * @param filter_config_module_ptr is the pointer to the in-module listener filter config created by
+ * envoy_dynamic_module_on_listener_filter_config_new.
+ * @param event_id is the ID of the event passed to
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_commit.
+ */
+void envoy_dynamic_module_on_listener_filter_config_scheduled(
+    envoy_dynamic_module_type_listener_filter_config_envoy_ptr filter_config_envoy_ptr,
+    envoy_dynamic_module_type_listener_filter_config_module_ptr filter_config_module_ptr,
+    uint64_t event_id);
 
 // =============================================================================
 // Listener Filter Callbacks
@@ -3586,6 +3613,102 @@ envoy_dynamic_module_type_metrics_result
 envoy_dynamic_module_callback_listener_filter_record_histogram_value(
     envoy_dynamic_module_type_listener_filter_envoy_ptr filter_envoy_ptr, size_t id,
     uint64_t value);
+
+// ---------------------- Listener filter scheduler callbacks -----------------
+
+/**
+ * envoy_dynamic_module_callback_listener_filter_scheduler_new is called by the module to create a
+ * new listener filter scheduler. The scheduler is used to dispatch listener filter operations from
+ * any thread including the ones managed by the module.
+ *
+ * @param filter_envoy_ptr is the pointer to the DynamicModuleListenerFilter object of the
+ * corresponding listener filter.
+ * @return envoy_dynamic_module_type_listener_filter_scheduler_module_ptr is the pointer to the
+ * created listener filter scheduler.
+ *
+ * NOTE: it is caller's responsibility to delete the scheduler using
+ * envoy_dynamic_module_callback_listener_filter_scheduler_delete when it is no longer needed.
+ * See the comment on envoy_dynamic_module_type_listener_filter_scheduler_module_ptr.
+ */
+envoy_dynamic_module_type_listener_filter_scheduler_module_ptr
+envoy_dynamic_module_callback_listener_filter_scheduler_new(
+    envoy_dynamic_module_type_listener_filter_envoy_ptr filter_envoy_ptr);
+
+/**
+ * envoy_dynamic_module_callback_listener_filter_scheduler_commit is called by the module to
+ * schedule a generic event to the listener filter on the worker thread it is running on.
+ *
+ * This will eventually end up invoking envoy_dynamic_module_on_listener_filter_scheduled
+ * event hook on the worker thread.
+ *
+ * This can be called multiple times to schedule multiple events to the same filter.
+ *
+ * @param scheduler_module_ptr is the pointer to the listener filter scheduler created by
+ * envoy_dynamic_module_callback_listener_filter_scheduler_new.
+ * @param event_id is the ID of the event. This can be used to differentiate between multiple
+ * events scheduled to the same filter. It can be any module-defined value.
+ */
+void envoy_dynamic_module_callback_listener_filter_scheduler_commit(
+    envoy_dynamic_module_type_listener_filter_scheduler_module_ptr scheduler_module_ptr,
+    uint64_t event_id);
+
+/**
+ * envoy_dynamic_module_callback_listener_filter_scheduler_delete is called by the module to delete
+ * the listener filter scheduler created by
+ * envoy_dynamic_module_callback_listener_filter_scheduler_new.
+ *
+ * @param scheduler_module_ptr is the pointer to the listener filter scheduler created by
+ * envoy_dynamic_module_callback_listener_filter_scheduler_new.
+ */
+void envoy_dynamic_module_callback_listener_filter_scheduler_delete(
+    envoy_dynamic_module_type_listener_filter_scheduler_module_ptr scheduler_module_ptr);
+
+/**
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_new is called by the module to
+ * create a new listener filter configuration scheduler. The scheduler is used to dispatch listener
+ * filter configuration operations to the main thread from any thread including the ones managed by
+ * the module.
+ *
+ * @param filter_config_envoy_ptr is the pointer to the DynamicModuleListenerFilterConfig object.
+ * @return envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr is the pointer to
+ * the created listener filter configuration scheduler.
+ *
+ * NOTE: it is caller's responsibility to delete the scheduler using
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_delete when it is no longer
+ * needed. See the comment on envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr.
+ */
+envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr
+envoy_dynamic_module_callback_listener_filter_config_scheduler_new(
+    envoy_dynamic_module_type_listener_filter_config_envoy_ptr filter_config_envoy_ptr);
+
+/**
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_delete is called by the module to
+ * delete the listener filter configuration scheduler created by
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_new.
+ *
+ * @param scheduler_module_ptr is the pointer to the listener filter configuration scheduler
+ * created by envoy_dynamic_module_callback_listener_filter_config_scheduler_new.
+ */
+void envoy_dynamic_module_callback_listener_filter_config_scheduler_delete(
+    envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr scheduler_module_ptr);
+
+/**
+ * envoy_dynamic_module_callback_listener_filter_config_scheduler_commit is called by the module to
+ * schedule a generic event to the listener filter configuration on the main thread.
+ *
+ * This will eventually end up invoking envoy_dynamic_module_on_listener_filter_config_scheduled
+ * event hook on the main thread.
+ *
+ * This can be called multiple times to schedule multiple events to the same filter configuration.
+ *
+ * @param scheduler_module_ptr is the pointer to the listener filter configuration scheduler
+ * created by envoy_dynamic_module_callback_listener_filter_config_scheduler_new.
+ * @param event_id is the ID of the event. This can be used to differentiate between multiple
+ * events scheduled to the same filter configuration. It can be any module-defined value.
+ */
+void envoy_dynamic_module_callback_listener_filter_config_scheduler_commit(
+    envoy_dynamic_module_type_listener_filter_config_scheduler_module_ptr scheduler_module_ptr,
+    uint64_t event_id);
 
 // =============================================================================
 // ========================== UDP Listener Filter ==============================
