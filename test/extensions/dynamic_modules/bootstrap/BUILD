@@ -15,9 +15,11 @@ envoy_cc_test(
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_extension_new_null",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_config_destroy",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_config_new",
+        "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_config_scheduled",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_constructor",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_extension_destroy",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_extension_new",
+        "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_http_callout_done",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_op",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_server_initialized",
         "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_worker_initialized",
@@ -25,6 +27,28 @@ envoy_cc_test(
     deps = [
         "//source/extensions/bootstrap/dynamic_modules:extension_config_lib",
         "//source/extensions/dynamic_modules:dynamic_modules_lib",
+        "//test/mocks/event:event_mocks",
+        "//test/mocks/server:factory_context_mocks",
+        "//test/test_common:environment_lib",
+        "//test/test_common:utility_lib",
+    ],
+)
+
+envoy_cc_test(
+    name = "abi_impl_test",
+    srcs = ["abi_impl_test.cc"],
+    data = [
+        "//test/extensions/dynamic_modules/test_data/c:bootstrap_no_op",
+    ],
+    deps = [
+        "//source/extensions/bootstrap/dynamic_modules:abi_impl",
+        "//source/extensions/bootstrap/dynamic_modules:extension_config_lib",
+        "//source/extensions/dynamic_modules:dynamic_modules_lib",
+        "//test/mocks/event:event_mocks",
+        "//test/mocks/http:http_mocks",
+        "//test/mocks/server:factory_context_mocks",
+        "//test/mocks/upstream:cluster_manager_mocks",
+        "//test/mocks/upstream:thread_local_cluster_mocks",
         "//test/test_common:environment_lib",
         "//test/test_common:utility_lib",
     ],
@@ -39,6 +63,8 @@ envoy_cc_test(
     ],
     deps = [
         "//source/extensions/bootstrap/dynamic_modules:extension_lib",
+        "//test/mocks/event:event_mocks",
+        "//test/mocks/server:factory_context_mocks",
         "//test/test_common:environment_lib",
         "//test/test_common:utility_lib",
     ],

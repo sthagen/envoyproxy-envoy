@@ -6437,7 +6437,40 @@ pub type NewBootstrapExtensionConfigFunction = fn(
 /// EnvoyBootstrapExtensionConfig is the Envoy-side bootstrap extension configuration.
 /// This is a handle to the Envoy configuration object.
 #[automock]
-pub trait EnvoyBootstrapExtensionConfig {}
+pub trait EnvoyBootstrapExtensionConfig {
+  /// Create a new implementation of the [`EnvoyBootstrapExtensionConfigScheduler`] trait.
+  ///
+  /// This can be used to schedule an event to the main thread where the config is running.
+  fn new_scheduler(&self) -> Box<dyn EnvoyBootstrapExtensionConfigScheduler>;
+
+  /// Send an HTTP callout to the given cluster with the given headers and optional body.
+  ///
+  /// Headers must contain the `:method`, `:path`, and `host` headers.
+  ///
+  /// This returns a tuple of (status, callout_id):
+  ///   * Success + valid callout_id: The callout was started successfully. The callout ID can be
+  ///     used to correlate the response in [`BootstrapExtensionConfig::on_http_callout_done`].
+  ///   * ClusterNotFound: The cluster does not exist.
+  ///   * MissingRequiredHeaders: The headers are missing required headers.
+  ///   * CannotCreateRequest: The request could not be created, e.g., there's no healthy upstream
+  ///     host in the cluster.
+  ///
+  /// The callout result will be delivered to the [`BootstrapExtensionConfig::on_http_callout_done`]
+  /// method.
+  ///
+  /// This must be called on the main thread. To call from other threads, use the scheduler
+  /// mechanism to post an event to the main thread first.
+  fn send_http_callout<'a>(
+    &mut self,
+    _cluster_name: &'a str,
+    _headers: Vec<(&'a str, &'a [u8])>,
+    _body: Option<&'a [u8]>,
+    _timeout_milliseconds: u64,
+  ) -> (
+    abi::envoy_dynamic_module_type_http_callout_init_result,
+    u64, // callout id
+  );
+}
 
 /// EnvoyBootstrapExtension is the Envoy-side bootstrap extension.
 /// This is a handle to the Envoy extension object.
@@ -6461,6 +6494,37 @@ pub trait BootstrapExtensionConfig: Send + Sync {
     &self,
     envoy_extension: &mut dyn EnvoyBootstrapExtension,
   ) -> Box<dyn BootstrapExtension>;
+
+  /// This is called when a new event is scheduled via the
+  /// [`EnvoyBootstrapExtensionConfigScheduler::commit`] for this [`BootstrapExtensionConfig`].
+  ///
+  /// * `envoy_extension_config` can be used to interact with the underlying Envoy config object.
+  /// * `event_id` is the ID of the event that was scheduled with
+  ///   [`EnvoyBootstrapExtensionConfigScheduler::commit`] to distinguish multiple scheduled events.
+  fn on_scheduled(
+    &self,
+    _envoy_extension_config: &mut dyn EnvoyBootstrapExtensionConfig,
+    _event_id: u64,
+  ) {
+  }
+
+  /// This is called when an HTTP callout response is received.
+  ///
+  /// * `envoy_extension_config` can be used to interact with the underlying Envoy config object.
+  /// * `callout_id` is the ID of the callout returned by
+  ///   [`EnvoyBootstrapExtensionConfig::send_http_callout`].
+  /// * `result` is the result of the callout.
+  /// * `response_headers` is a list of key-value pairs of the response headers. This is optional.
+  /// * `response_body` is the response body. This is optional.
+  fn on_http_callout_done(
+    &self,
+    _envoy_extension_config: &mut dyn EnvoyBootstrapExtensionConfig,
+    _callout_id: u64,
+    _result: abi::envoy_dynamic_module_type_http_callout_result,
+    _response_headers: Option<&[(EnvoyBuffer, EnvoyBuffer)]>,
+    _response_body: Option<&[EnvoyBuffer]>,
+  ) {
+  }
 }
 
 /// BootstrapExtension is the module-side bootstrap extension.
@@ -6483,13 +6547,49 @@ pub trait BootstrapExtension: Send + Sync {
   fn on_worker_thread_initialized(&mut self, _envoy_extension: &mut dyn EnvoyBootstrapExtension) {}
 }
 
+/// This represents a thread-safe object that can be used to schedule a generic event to the
+/// Envoy bootstrap extension config on the main thread.
+#[automock]
+pub trait EnvoyBootstrapExtensionConfigScheduler: Send + Sync {
+  /// Commit the scheduled event to the main thread.
+  fn commit(&self, event_id: u64);
+}
+
+struct EnvoyBootstrapExtensionConfigSchedulerImpl {
+  raw_ptr: abi::envoy_dynamic_module_type_bootstrap_extension_config_scheduler_module_ptr,
+}
+
+unsafe impl Send for EnvoyBootstrapExtensionConfigSchedulerImpl {}
+unsafe impl Sync for EnvoyBootstrapExtensionConfigSchedulerImpl {}
+
+impl Drop for EnvoyBootstrapExtensionConfigSchedulerImpl {
+  fn drop(&mut self) {
+    unsafe {
+      abi::envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_delete(self.raw_ptr);
+    }
+  }
+}
+
+impl EnvoyBootstrapExtensionConfigScheduler for EnvoyBootstrapExtensionConfigSchedulerImpl {
+  fn commit(&self, event_id: u64) {
+    unsafe {
+      abi::envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_commit(
+        self.raw_ptr,
+        event_id,
+      );
+    }
+  }
+}
+
+impl EnvoyBootstrapExtensionConfigScheduler for Box<dyn EnvoyBootstrapExtensionConfigScheduler> {
+  fn commit(&self, event_id: u64) {
+    (**self).commit(event_id);
+  }
+}
+
 // Implementation of EnvoyBootstrapExtensionConfig
 
 struct EnvoyBootstrapExtensionConfigImpl {
-  // The raw pointer is stored for future callback implementations.
-  // Currently, the EnvoyBootstrapExtensionConfig trait has no methods, but
-  // callbacks may be added in the future (e.g., for metrics or other APIs).
-  #[allow(dead_code)]
   raw: abi::envoy_dynamic_module_type_bootstrap_extension_config_envoy_ptr,
 }
 
@@ -6499,7 +6599,58 @@ impl EnvoyBootstrapExtensionConfigImpl {
   }
 }
 
-impl EnvoyBootstrapExtensionConfig for EnvoyBootstrapExtensionConfigImpl {}
+impl EnvoyBootstrapExtensionConfig for EnvoyBootstrapExtensionConfigImpl {
+  fn new_scheduler(&self) -> Box<dyn EnvoyBootstrapExtensionConfigScheduler> {
+    unsafe {
+      let scheduler_ptr =
+        abi::envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_new(self.raw);
+      Box::new(EnvoyBootstrapExtensionConfigSchedulerImpl {
+        raw_ptr: scheduler_ptr,
+      })
+    }
+  }
+
+  fn send_http_callout<'a>(
+    &mut self,
+    cluster_name: &'a str,
+    headers: Vec<(&'a str, &'a [u8])>,
+    body: Option<&'a [u8]>,
+    timeout_milliseconds: u64,
+  ) -> (abi::envoy_dynamic_module_type_http_callout_init_result, u64) {
+    let body_ptr = body.map(|s| s.as_ptr()).unwrap_or(std::ptr::null());
+    let body_length = body.map(|s| s.len()).unwrap_or(0);
+
+    // Convert headers to module HTTP headers.
+    let module_headers: Vec<abi::envoy_dynamic_module_type_module_http_header> = headers
+      .iter()
+      .map(|(k, v)| abi::envoy_dynamic_module_type_module_http_header {
+        key_ptr: k.as_ptr() as *const _,
+        key_length: k.len(),
+        value_ptr: v.as_ptr() as *const _,
+        value_length: v.len(),
+      })
+      .collect();
+
+    let mut callout_id: u64 = 0;
+
+    let result = unsafe {
+      abi::envoy_dynamic_module_callback_bootstrap_extension_http_callout(
+        self.raw,
+        &mut callout_id as *mut _ as *mut _,
+        str_to_module_buffer(cluster_name),
+        module_headers.as_ptr() as *mut _,
+        module_headers.len(),
+        abi::envoy_dynamic_module_type_module_buffer {
+          ptr: body_ptr as *mut _,
+          length: body_length,
+        },
+        timeout_milliseconds,
+      )
+    };
+
+    (result, callout_id)
+  }
+}
 
 // Implementation of EnvoyBootstrapExtension
 
@@ -6612,6 +6763,62 @@ pub extern "C" fn envoy_dynamic_module_on_bootstrap_extension_destroy(
   extension_ptr: abi::envoy_dynamic_module_type_bootstrap_extension_module_ptr,
 ) {
   let _ = unsafe { Box::from_raw(extension_ptr as *mut Box<dyn BootstrapExtension>) };
+}
+
+#[no_mangle]
+pub extern "C" fn envoy_dynamic_module_on_bootstrap_extension_config_scheduled(
+  envoy_ptr: abi::envoy_dynamic_module_type_bootstrap_extension_config_envoy_ptr,
+  extension_config_ptr: abi::envoy_dynamic_module_type_bootstrap_extension_config_module_ptr,
+  event_id: u64,
+) {
+  let extension_config = extension_config_ptr as *const *const dyn BootstrapExtensionConfig;
+  let extension_config = unsafe { &**extension_config };
+  extension_config.on_scheduled(
+    &mut EnvoyBootstrapExtensionConfigImpl::new(envoy_ptr),
+    event_id,
+  );
+}
+
+/// Event hook called by Envoy when an HTTP callout initiated by a bootstrap extension completes.
+///
+/// # Safety
+/// This function is unsafe because it dereferences raw pointers passed from Envoy. The caller
+/// must ensure that all pointers are valid and that the memory they point to remains valid for
+/// the duration of the function call.
+#[no_mangle]
+pub unsafe extern "C" fn envoy_dynamic_module_on_bootstrap_extension_http_callout_done(
+  envoy_ptr: abi::envoy_dynamic_module_type_bootstrap_extension_config_envoy_ptr,
+  extension_config_ptr: abi::envoy_dynamic_module_type_bootstrap_extension_config_module_ptr,
+  callout_id: u64,
+  result: abi::envoy_dynamic_module_type_http_callout_result,
+  headers: *const abi::envoy_dynamic_module_type_envoy_http_header,
+  headers_size: usize,
+  body_chunks: *const abi::envoy_dynamic_module_type_envoy_buffer,
+  body_chunks_size: usize,
+) {
+  let extension_config = extension_config_ptr as *const *const dyn BootstrapExtensionConfig;
+  let extension_config = unsafe { &**extension_config };
+
+  let headers = if headers_size > 0 {
+    Some(unsafe {
+      std::slice::from_raw_parts(headers as *const (EnvoyBuffer, EnvoyBuffer), headers_size)
+    })
+  } else {
+    None
+  };
+  let body = if body_chunks_size > 0 {
+    Some(unsafe { std::slice::from_raw_parts(body_chunks as *const EnvoyBuffer, body_chunks_size) })
+  } else {
+    None
+  };
+
+  extension_config.on_http_callout_done(
+    &mut EnvoyBootstrapExtensionConfigImpl::new(envoy_ptr),
+    callout_id,
+    result,
+    headers,
+    body,
+  );
 }
 
 /// Declare the init functions for the bootstrap extension dynamic module.

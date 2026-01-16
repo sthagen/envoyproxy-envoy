@@ -4,6 +4,7 @@
 // all dynamic modules. These are the "Common Callbacks" declared in abi.h and are available
 // regardless of which extension point is being used (HTTP/Network/Listener/UDP/Bootstrap/etc).
 
+#include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/extensions/dynamic_modules/abi.h"
 
@@ -41,6 +42,49 @@ void envoy_dynamic_module_callback_log(envoy_dynamic_module_type_log_level level
   default:
     break;
   }
+}
+
+// ---------------------- Bootstrap extension scheduler callbacks ------------------------
+// These are weak symbols that provide default stub implementations. The actual implementations
+// are provided in the bootstrap extension abi_impl.cc when the bootstrap extension is used.
+// This is necessary because the Rust SDK generates bindings for all callbacks in abi.h, and
+// these symbols must be resolvable when any Rust module is loaded.
+//
+// We use IS_ENVOY_BUG instead of PANIC to allow coverage collection in tests. In non-coverage
+// debug builds, IS_ENVOY_BUG will abort; in coverage builds it logs and continues, allowing the
+// test to verify the error path was hit.
+
+__attribute__((weak)) envoy_dynamic_module_type_bootstrap_extension_config_scheduler_module_ptr
+envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_new(
+    envoy_dynamic_module_type_bootstrap_extension_config_envoy_ptr) {
+  IS_ENVOY_BUG("envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_new: "
+               "not implemented in this context");
+  return nullptr;
+}
+
+__attribute__((weak)) void
+envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_delete(
+    envoy_dynamic_module_type_bootstrap_extension_config_scheduler_module_ptr) {
+  IS_ENVOY_BUG("envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_delete: "
+               "not implemented in this context");
+}
+
+__attribute__((weak)) void
+envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_commit(
+    envoy_dynamic_module_type_bootstrap_extension_config_scheduler_module_ptr, uint64_t) {
+  IS_ENVOY_BUG("envoy_dynamic_module_callback_bootstrap_extension_config_scheduler_commit: "
+               "not implemented in this context");
+}
+
+__attribute__((weak)) envoy_dynamic_module_type_http_callout_init_result
+envoy_dynamic_module_callback_bootstrap_extension_http_callout(
+    envoy_dynamic_module_type_bootstrap_extension_config_envoy_ptr, uint64_t* /* callout_id_out */,
+    envoy_dynamic_module_type_module_buffer /* cluster_name */,
+    envoy_dynamic_module_type_module_http_header* /* headers */, size_t /* headers_size */,
+    envoy_dynamic_module_type_module_buffer /* body */, uint64_t /* timeout_milliseconds */) {
+  IS_ENVOY_BUG("envoy_dynamic_module_callback_bootstrap_extension_http_callout: "
+               "not implemented in this context");
+  return envoy_dynamic_module_type_http_callout_init_result_CannotCreateRequest;
 }
 
 } // extern "C"
