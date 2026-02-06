@@ -94,6 +94,13 @@ bug_fixes:
   change: |
     Fixed the log formatter in HTTP router upstream logs by correctly setting the downstream connection's
     ``ConnectionInfoProvider`` in the ``StreamInfo``.
+- area: spiffe
+  change: |
+    Reduce the number of the file watches needed by :ref:`trust_bundles
+    <envoy_v3_api_field_extensions.transport_sockets.tls.v3.SPIFFECertValidatorConfig.trust_bundles>` when the validator
+    is used in multiple places. Add support for :ref:`watched_directory
+    <envoy_v3_api_field_config.core.v3.datasource.watched_directory>` to support Kubernetes environments that rely on
+    atomic symbolic file updates.  Add content hashing during file watching to handle excessive watch notifications.
 - area: odcds
   change: |
     Fixed a crash (SIGABRT) when destroying OdCDS handles on worker threads. The handle no longer holds
@@ -118,6 +125,12 @@ new_features:
 - area: stats
   change: |
     Added support to limit the number of stats stored in each stats scope in the stats library.
+- area: stats
+  change: |
+    The admin prometheus stats endpoint now supports the protobuf exposition format, and will automatically
+    use it if the request contains the correct Accept header, or if query parameter ``prom_protobuf=1`` is
+    set. In a prometheus scrape configuration, add ``PrometheusProto`` to ``scrape_protocols`` to use
+    the protobuf format.
 - area: tls
   change: |
     Added support for fetching certificates on-demand via SDS in the upstream TLS transport socket
