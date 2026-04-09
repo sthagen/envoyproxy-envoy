@@ -180,6 +180,13 @@ envoy.clusters.dynamic_modules:
   status: alpha
   type_urls:
   - envoy.extensions.clusters.dynamic_modules.v3.ClusterConfig
+envoy.clusters.mcp_multicluster:
+  categories:
+  - envoy.clusters
+  security_posture: requires_trusted_downstream_and_upstream
+  status: alpha
+  type_urls:
+  - envoy.extensions.clusters.mcp_multicluster.v3.ClusterConfig
 envoy.clusters.static:
   categories:
   - envoy.clusters
@@ -649,6 +656,7 @@ envoy.filters.http.oauth2:
   status: stable
   type_urls:
   - envoy.extensions.filters.http.oauth2.v3.OAuth2
+  - envoy.extensions.filters.http.oauth2.v3.OAuth2PerRoute
 envoy.filters.http.on_demand:
   categories:
   - envoy.filters.http
