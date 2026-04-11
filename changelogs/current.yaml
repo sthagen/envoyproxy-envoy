@@ -37,6 +37,11 @@ behavior_changes:
 
 minor_behavior_changes:
 # *Changes that may cause incompatibilities for some users, but should not for most*
+- area: load_balancing
+  change: |
+    Changed the default behavior of ``OrcaWeightManager`` to prefer named metrics over application
+    utilization when computing utilization. This behavior can be reverted by setting the runtime guard
+    ``envoy.reloadable_features.orca_weight_manager_use_named_metrics_first`` to ``false``.
 - area: compressor
   change: |
     Strong ``ETag`` removal when compressing now uses the same weak ``W/`` check as
@@ -133,6 +138,11 @@ minor_behavior_changes:
 
 bug_fixes:
 # *Changes expected to improve the state of the world and are unlikely to have negative effects*
+- area: router
+  change: |
+    Fixed a bug where the router's buffer overflow check double-counted the request body size when an
+    upstream filter (e.g. the buffer filter) had already buffered all data. This caused requests with
+    body size between half and full buffer limit to incorrectly cancel internal redirects.
 - area: router
   change: |
     Fixed a crash in scoped RDS when on-demand update is triggered for a scope that uses inline
@@ -903,6 +913,10 @@ new_features:
     destroyed. This could cause use-after-free conditions when filter callbacks were invoked on filters that
     had already received ``onDestroy()``. The fix ensures that ``decodeHeaders()``, ``decodeData()``,
     ``decodeTrailers()``, and ``decodeMetadata()`` are blocked after a downstream reset.
+- area: formatter
+  change: |
+    Added support for ``%TRACE_ID%`` in the custom response policy filter's local response policy to allow
+    trace ID to be substituted into the response body.
 - area: redis
   change: |
     Added support for ``BITFIELD_RO`` in ``redis_proxy``.
