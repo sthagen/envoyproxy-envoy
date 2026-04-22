@@ -296,7 +296,7 @@ quiche:
   project_name: "QUICHE"
   project_desc: "QUICHE (QUIC, HTTP/2, Etc) is Google‘s implementation of QUIC and related protocols"
   project_url: "https://github.com/google/quiche"
-  release_date: "2026-04-16"
+  release_date: "2026-04-20"
   use_category:
   - controlplane
   - dataplane_core
@@ -828,7 +828,7 @@ fips_cmake_linux_aarch64:
   project_name: "CMake (Linux aarch64)"
   project_desc: "Cross-platform family of tools designed to build, test and package software"
   project_url: "https://cmake.org/"
-  release_date: "2026-03-27"
+  release_date: "2026-04-21"
   use_category:
   - build
   - dataplane_core
@@ -841,7 +841,7 @@ fips_cmake_linux_x86_64:
   project_name: "CMake (Linux x86_64)"
   project_desc: "Cross-platform family of tools designed to build, test and package software"
   project_url: "https://cmake.org/"
-  release_date: "2026-03-27"
+  release_date: "2026-04-21"
   use_category:
   - build
   - dataplane_core
