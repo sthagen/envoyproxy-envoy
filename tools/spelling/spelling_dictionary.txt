@@ -1518,6 +1518,7 @@ timestamps
 timeval
 tmp
 tmpfile
+tmpfs
 token
 tokenize
 tokenized
