@@ -9,7 +9,7 @@ cffi>=1.15.0
 colorama
 coloredlogs
 cryptography
-dependatool>=0.2.2
+dependatool>=0.3.0
 envoy.base.utils>=0.5.10
 envoy.ci.report>=0.0.3
 envoy.code.check>=0.5.12
