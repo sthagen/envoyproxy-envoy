@@ -26,6 +26,7 @@ Currently, dynamic modules are supported at the following extension points:
 * As a :ref:`listener filter <envoy_v3_api_msg_extensions.filters.listener.dynamic_modules.v3.DynamicModuleListenerFilter>`.
 * As a :ref:`UDP listener filter <envoy_v3_api_msg_extensions.filters.udp.dynamic_modules.v3.DynamicModuleUdpListenerFilter>`.
 * As an :ref:`access logger <envoy_v3_api_msg_extensions.access_loggers.dynamic_modules.v3.DynamicModuleAccessLog>`.
+* As a :ref:`formatter <envoy_v3_api_msg_extensions.formatter.dynamic_modules.v3.DynamicModuleFormatter>`.
 * As a :ref:`network filter <envoy_v3_api_msg_extensions.filters.network.dynamic_modules.v3.DynamicModuleNetworkFilter>`.
 * As an :ref:`HTTP filter <envoy_v3_api_msg_extensions.filters.http.dynamic_modules.v3.DynamicModuleFilter>`.
 * As an :ref:`HTTP matching data input <envoy_v3_api_msg_extensions.matching.http.dynamic_modules.v3.HttpDynamicModuleMatchInput>`.
@@ -96,3 +97,29 @@ Getting started
 
 We have a dedicated repository for the dynamic module examples to help you get started.
 The repository is available at `envoyproxy/dynamic-modules-examples <https://github.com/envoyproxy/dynamic-modules-examples>`_
+
+Statistics
+---------------------------
+
+The dynamic module HTTP filter emits the following statistics in the ``dynamic_modules.`` namespace.
+These stats track failures encountered while loading a filter configuration.
+Each one is tagged with ``config_name``, set to the configured name of the dynamic-module extension
+instance — for the HTTP filter this is the
+:ref:`filter_name
+<envoy_v3_api_field_extensions.filters.http.dynamic_modules.v3.DynamicModuleFilter.filter_name>`
+(``default`` if it is empty). The ``dynamic_modules.`` namespace is shared across dynamic-module
+extension types.
+
+.. csv-table::
+  :header: Name, Type, Description
+  :widths: 1, 1, 2
+
+  module_load_error, Counter, "Total dynamic modules that could not be loaded (missing or invalid module source, ``dlopen`` failure, or by-name lookup miss)."
+  config_init_error, Counter, "Total filter configurations that failed to initialize after the module loaded successfully (a required ABI symbol could not be resolved, or the module failing to load the configuration)."
+  remote_fetch_error, Counter, "Total failures fetching or loading a remote module source, including rejected cache misses when ``nack_on_cache_miss`` is set."
+  per_route_config_error, Counter, "Total per-route configurations that failed to load or initialize."
+
+In addition to the counters above, a module may define its own custom metrics. These are emitted
+under the configurable :ref:`metrics_namespace
+<envoy_v3_api_field_extensions.dynamic_modules.v3.DynamicModuleConfig.metrics_namespace>`
+(``dynamicmodulescustom`` by default), separately from the ``dynamic_modules.`` namespace above.

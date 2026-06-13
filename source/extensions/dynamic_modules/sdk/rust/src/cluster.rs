@@ -176,8 +176,8 @@ pub trait ClusterLb: Send {
 
   /// Called when the set of hosts in the cluster changes.
   ///
-  /// The `envoy_lb` provides access to the updated host set and to the addresses of hosts
-  /// that were added or removed via
+  /// The `envoy_lb` provides access to the updated host set and to the hosts that were added or
+  /// removed via [`EnvoyClusterLoadBalancer::get_member_update_host`], or their addresses via
   /// [`EnvoyClusterLoadBalancer::get_member_update_host_address`].
   ///
   /// After this callback returns, the standard host query methods reflect the new state.
@@ -416,6 +416,9 @@ pub trait EnvoyCluster: Send + Sync {
     &self,
   ) -> abi::envoy_dynamic_module_type_cluster_worker_slot_data_module_ptr;
 
+  /// This cluster's CDS name (`ClusterInfo::name()`). Available in any cluster-side callback.
+  fn get_cluster_name<'a>(&'a self) -> EnvoyBuffer<'a>;
+
   /// Sends an HTTP request to the specified cluster and asynchronously delivers the response
   /// via [`Cluster::on_http_callout_done`].
   ///
@@ -642,6 +645,21 @@ pub trait EnvoyClusterLoadBalancer: Send {
   ///
   /// Set `is_added` to `true` to get an added host address, `false` for a removed host address.
   fn get_member_update_host_address(&self, index: usize, is_added: bool) -> Option<String>;
+
+  /// Returns the host pointer of an added or removed host during the
+  /// [`ClusterLb::on_host_membership_update`] callback.
+  ///
+  /// Unlike [`EnvoyClusterLoadBalancer::get_member_update_host_address`], this returns the host
+  /// directly from the added or removed list without an address lookup. It is only valid during
+  /// the `on_host_membership_update` callback.
+  ///
+  /// Set `is_added` to `true` to get an added host, `false` for a removed host. Returns `None`
+  /// when the index is out of bounds or the callback is not active.
+  fn get_member_update_host(
+    &self,
+    index: usize,
+    is_added: bool,
+  ) -> Option<abi::envoy_dynamic_module_type_cluster_host_envoy_ptr>;
 }
 
 /// Envoy-side scheduler that dispatches events to the main thread.
@@ -1002,6 +1020,17 @@ impl EnvoyCluster for EnvoyClusterImpl {
     &self,
   ) -> abi::envoy_dynamic_module_type_cluster_worker_slot_data_module_ptr {
     unsafe { abi::envoy_dynamic_module_callback_cluster_worker_slot_get(self.raw) }
+  }
+
+  fn get_cluster_name(&self) -> EnvoyBuffer<'_> {
+    let mut result = abi::envoy_dynamic_module_type_envoy_buffer {
+      ptr: std::ptr::null(),
+      length: 0,
+    };
+    unsafe {
+      abi::envoy_dynamic_module_callback_cluster_get_name(self.raw, &mut result);
+    }
+    unsafe { EnvoyBuffer::new_from_raw(result.ptr as *const u8, result.length) }
   }
 
   fn send_http_callout<'a>(
@@ -1448,6 +1477,23 @@ impl EnvoyClusterLoadBalancer for EnvoyClusterLoadBalancerImpl {
       })
     } else {
       None
+    }
+  }
+
+  fn get_member_update_host(
+    &self,
+    index: usize,
+    is_added: bool,
+  ) -> Option<abi::envoy_dynamic_module_type_cluster_host_envoy_ptr> {
+    let host = unsafe {
+      abi::envoy_dynamic_module_callback_cluster_lb_get_member_update_host(
+        self.raw, index, is_added,
+      )
+    };
+    if host.is_null() {
+      None
+    } else {
+      Some(host)
     }
   }
 }
