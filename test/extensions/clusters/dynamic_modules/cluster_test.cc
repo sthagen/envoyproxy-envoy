@@ -337,12 +337,28 @@ TEST_F(DynamicModuleClusterTest, DuplicateHostDetection) {
   EXPECT_EQ(3, DynamicModuleClusterTestPeer::getHostMapSize(*cluster));
   EXPECT_EQ(3, cluster->prioritySet().hostSetsPerPriority()[0]->hosts().size());
 
-  // A batch of only existing addresses adds nothing but still succeeds.
+  // Capture the host-set partition identity before a no-op push. A rebuild would replace these
+  // shared_ptrs (partitionHosts allocates new vectors), so identity is a precise "did we rebuild"
+  // signal. Also subscribe a membership callback: a republish fires it even with a (0,0) diff.
+  const auto* hosts_ptr_before = cluster->prioritySet().hostSetsPerPriority()[0]->hostsPtr().get();
+  const auto* healthy_ptr_before =
+      cluster->prioritySet().hostSetsPerPriority()[0]->healthyHostsPtr().get();
+  int membership_updates = 0;
+  auto cb_handle = cluster->prioritySet().addMemberUpdateCb(
+      [&](const Upstream::HostVector&, const Upstream::HostVector&) { ++membership_updates; });
+
+  // A batch of only existing addresses adds nothing but still succeeds, and must not rebuild or
+  // republish the host set.
   std::vector<Upstream::HostSharedPtr> hosts3;
   ASSERT_TRUE(addSimpleHosts(*cluster, {"127.0.0.1:10001", "127.0.0.1:10003"}, {1, 1}, hosts3));
   EXPECT_EQ(0, hosts3.size());
   EXPECT_EQ(3, DynamicModuleClusterTestPeer::getHostMapSize(*cluster));
   EXPECT_EQ(3, cluster->prioritySet().hostSetsPerPriority()[0]->hosts().size());
+  // No rebuild: the partition shared_ptrs are unchanged and no membership callback fired.
+  EXPECT_EQ(hosts_ptr_before, cluster->prioritySet().hostSetsPerPriority()[0]->hostsPtr().get());
+  EXPECT_EQ(healthy_ptr_before,
+            cluster->prioritySet().hostSetsPerPriority()[0]->healthyHostsPtr().get());
+  EXPECT_EQ(0, membership_updates);
 }
 
 // Test that invalid addresses cause the entire batch to fail.
@@ -3390,6 +3406,76 @@ TEST_F(DynamicModuleClusterTest, LbMemberUpdateHostPointer) {
   DynamicModuleClusterTestPeer::setMemberUpdateHosts(*lb_instance, nullptr, nullptr);
   EXPECT_EQ(nullptr,
             envoy_dynamic_module_callback_cluster_lb_get_member_update_host(lb_ptr, 0, true));
+}
+
+// Test get_member_update_host_packed_address returns the packed IP/port during a membership update.
+TEST_F(DynamicModuleClusterTest, LbMemberUpdateHostPackedAddress) {
+  auto result = createCluster(makeYamlConfig("cluster_no_op"));
+  ASSERT_TRUE(result.ok()) << result.status().message();
+
+  auto cluster = std::dynamic_pointer_cast<DynamicModuleCluster>(result->first);
+  auto handle = std::make_shared<DynamicModuleClusterHandle>(cluster);
+  auto lb_instance = std::make_unique<DynamicModuleLoadBalancer>(handle, cluster->prioritySet());
+  auto* lb_ptr = static_cast<void*>(lb_instance.get());
+
+  // Distinctive octets so every byte position is pinned, and the upper twelve bytes must stay
+  // zeroed (no leftover from a previous v6 read), exercising the memset.
+  auto v4_host = Upstream::makeTestHost(cluster->info(), "tcp://1.2.3.4:10001");
+  // Distinctive bytes at both ends and the interior so a reversed/byte-swapped copy is caught.
+  auto v6_host = Upstream::makeTestHost(cluster->info(), "tcp://[2001:db8:1122:3344::1]:10002");
+  auto pipe_host = Upstream::makeTestHost(cluster->info(), "unix:///tmp/dynamic_modules_test");
+
+  envoy_dynamic_module_type_packed_address addr{};
+
+  // Outside a membership update callback the borrowed vectors are null, so the getter fails.
+  EXPECT_FALSE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      lb_ptr, 0, true, &addr));
+
+  Upstream::HostVector added{v4_host, v6_host};
+  Upstream::HostVector removed{pipe_host};
+  DynamicModuleClusterTestPeer::setMemberUpdateHosts(*lb_instance, &added, &removed);
+
+  // IPv6 host first: all sixteen bytes hold the address in network byte order. Reading it before
+  // the IPv4 host leaves non-zero bytes in the buffer, so the IPv4 read below must zero them.
+  ASSERT_TRUE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      lb_ptr, 1, true, &addr));
+  EXPECT_EQ(6, addr.family);
+  EXPECT_EQ(10002, addr.port);
+  const uint8_t expected_v6[16] = {0x20, 0x01, 0x0d, 0xb8, 0x11, 0x22, 0x33, 0x44,
+                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+  for (size_t i = 0; i < 16; ++i) {
+    EXPECT_EQ(expected_v6[i], addr.address_bytes[i]) << "v6 byte " << i;
+  }
+
+  // IPv4 host: address in the first four bytes (network byte order), the upper twelve zeroed by the
+  // memset (which must clear the leftover IPv6 bytes above), port in host byte order.
+  ASSERT_TRUE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      lb_ptr, 0, true, &addr));
+  EXPECT_EQ(4, addr.family);
+  EXPECT_EQ(10001, addr.port);
+  const uint8_t expected_v4[16] = {1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  for (size_t i = 0; i < 16; ++i) {
+    EXPECT_EQ(expected_v4[i], addr.address_bytes[i]) << "v4 byte " << i;
+  }
+
+  // A pipe (non-IP) address returns false.
+  EXPECT_FALSE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      lb_ptr, 0, false, &addr));
+
+  // Out-of-bounds index returns false.
+  EXPECT_FALSE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      lb_ptr, 2, true, &addr));
+
+  // Null load balancer and null result return false.
+  EXPECT_FALSE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      nullptr, 0, true, &addr));
+  EXPECT_FALSE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      lb_ptr, 0, true, nullptr));
+
+  // Once the callback ends the borrowed vectors are cleared and the getter fails again.
+  DynamicModuleClusterTestPeer::setMemberUpdateHosts(*lb_instance, nullptr, nullptr);
+  EXPECT_FALSE(envoy_dynamic_module_callback_cluster_lb_get_member_update_host_packed_address(
+      lb_ptr, 0, true, &addr));
 }
 
 // Test hosts-per-locality is correctly maintained with locality-aware hosts.
