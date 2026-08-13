@@ -38,6 +38,7 @@
 #include "envoy/upstream/upstream.h"
 
 #include "source/common/common/dns_utils.h"
+#include "source/common/common/empty_string.h"
 #include "source/common/common/enum_to_int.h"
 #include "source/common/common/fmt.h"
 #include "source/common/common/utility.h"
@@ -191,7 +192,7 @@ HostVector filterHosts(const absl::node_hash_set<HostSharedPtr>& hosts,
   net_hosts.reserve(hosts.size());
 
   for (const auto& host : hosts) {
-    if (excluded_hosts.find(host) == excluded_hosts.end()) {
+    if (!excluded_hosts.contains(host)) {
       net_hosts.emplace_back(host);
     }
   }
@@ -987,7 +988,7 @@ void PrioritySetImpl::BatchUpdateScope::updateHosts(
     std::optional<uint32_t> overprovisioning_factor,
     HostMapConstSharedPtr cross_priority_host_map) {
   // We assume that each call updates a different priority.
-  ASSERT(priorities_.find(priority) == priorities_.end());
+  ASSERT(!priorities_.contains(priority));
   priorities_.insert(priority);
 
   for (const auto& host : hosts_added) {
@@ -1451,6 +1452,16 @@ ClusterInfoImpl::ClusterInfoImpl(
   // early validation of sanity of fields that we should catch at config ingestion.
   DurationUtil::durationToMilliseconds(common_lb_config_->update_merge_window());
 
+  // stats_prefix passed to the upstream HTTP filter chain. upstream_context_ is already scoped to
+  // "cluster.<name>.", so with the correct-stats-prefix flag enabled pass an empty prefix and the
+  // filter stats land under "cluster.<name>.*". With the flag disabled, reproduce the legacy
+  // stringified scope prefix, which repeats the scope prefix and preserves existing stat names.
+  const std::string http_stats_prefix =
+      Runtime::runtimeFeatureEnabled(
+          "envoy.reloadable_features.upstream_http_filters_correct_stats_prefix")
+          ? EMPTY_STRING
+          : stats_scope_->symbolTable().toString(stats_scope_->prefix());
+
   // Create upstream network filter factories
   const auto& filters = config.filters();
   ASSERT(filter_factories_.empty());
@@ -1499,12 +1510,11 @@ ClusterInfoImpl::ClusterInfoImpl(
         return;
       }
 
-      std::string prefix = stats_scope_->symbolTable().toString(stats_scope_->prefix());
       Http::FilterChainHelper<Server::Configuration::UpstreamFactoryContext,
                               Server::Configuration::UpstreamHttpFilterConfigFactory>
           helper(*http_filter_config_provider_manager_, upstream_context_.serverFactoryContext(),
                  factory_context.serverFactoryContext().clusterManager(), upstream_context_,
-                 prefix);
+                 http_stats_prefix);
       SET_AND_RETURN_IF_NOT_OK(helper.processFilters(http_protocol_options_->http_filters_,
                                                      "upstream http", "upstream http",
                                                      http_filter_factories_),
@@ -2375,8 +2385,7 @@ void PriorityStateManager::updateClusterPrioritySet(
 
   // Do we have hosts for the local locality?
   const bool non_empty_local_locality =
-      local_info_node_.has_locality() &&
-      hosts_per_locality.find(local_locality) != hosts_per_locality.end();
+      local_info_node_.has_locality() && hosts_per_locality.contains(local_locality);
 
   // As per HostsPerLocality::get(), the per_locality vector must have the local locality hosts
   // first if non_empty_local_locality.
